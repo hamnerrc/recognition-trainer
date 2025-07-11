@@ -15,13 +15,14 @@ const statsScreen = document.getElementById('statsScreen');
 const statsCards = document.getElementById('statsCards');
 const recogInput = document.getElementById('input-recog-time');
 const selectCategory = document.getElementById('select-category');
+
 const btnExportData = document.getElementById('btn-export-data');
 const btnImportData = document.getElementById('btn-import-data');
 const fileImportInput = document.getElementById('file-import');
 
 // ——— State ———
 let currentCardIndex = 0;
-let stage = 'idle';       // idle, showing, waitingAnswer, grading, waitingNext
+let stage = 'idle'; // idle, showing, waitingAnswer, grading, waitingNext
 let recognitionTime = parseFloat(recogInput.value) * 1000;
 let practiceMissedMode = false;
 
@@ -46,7 +47,6 @@ function renderCube(alg, options = {}) {
     player.setAttribute('alg', alg);
     player.setAttribute('experimental-setup-anchor', 'end');
     player.setAttribute('hint-facelets', 'none');
-    // only stickering for OLL
     if (selectCategory.value === 'oll') {
         player.setAttribute('experimental-stickering', 'OLL');
     }
@@ -63,6 +63,17 @@ function renderCube(alg, options = {}) {
         player.setAttribute('background', 'none');
     }
     return player;
+}
+
+function showPressSpacePrompt() {
+    container.innerHTML = '';
+    const prompt = document.createElement('div');
+    prompt.style.color = '#bbb';
+    prompt.style.fontSize = '16px';
+    prompt.style.fontStyle = 'italic';
+    prompt.style.margin = 'auto';
+    prompt.textContent = 'Press SPACE to continue';
+    container.appendChild(prompt);
 }
 
 // ——— UI States ———
@@ -95,7 +106,6 @@ function startCard() {
     const cards = getCards();
     const missedSet = getMissedSet();
 
-    // pick index
     if (practiceMissedMode) {
         practiceMissedIndices = Array.from(missedSet);
         if (!practiceMissedIndices.length) {
@@ -109,16 +119,15 @@ function startCard() {
         currentCardIndex = Math.floor(Math.random() * cards.length);
     }
 
-    // show instantly
     const card = cards[currentCardIndex];
     container.innerHTML = '';
     container.appendChild(renderCube(card.alg));
     stage = 'showing';
 
-    // hide after recognitionTime
     setTimeout(() => {
         container.innerHTML = '';
         stage = 'waitingAnswer';
+        showPressSpacePrompt();
     }, recognitionTime);
 }
 
@@ -127,11 +136,10 @@ function showAnswer() {
     const card = cards[currentCardIndex];
 
     answerElement.innerHTML = '';
-    answerElement.appendChild(
-        renderCube(card.alg, { visualization: '2d' })
-    );
+    answerElement.appendChild(renderCube(card.alg, { visualization: '2d' }));
     answerElement.style.display = 'block';
     answerButtons.style.display = 'block';
+    container.innerHTML = '';
     stage = 'grading';
 }
 
@@ -142,6 +150,7 @@ function grade(correct) {
     answerElement.style.display = 'none';
     container.innerHTML = '';
     stage = 'waitingNext';
+    showPressSpacePrompt();
 }
 
 function nextCard() {
@@ -193,8 +202,8 @@ function clearStats() {
     }
 }
 
+// ——— Import/Export Data ———
 function exportData() {
-    // Gather all data to save
     const data = {
         missedIndices: {
             oll: Array.from(missedIndices.oll),
@@ -241,7 +250,7 @@ function importData(event) {
             }
             alert('Data imported successfully.');
             showMenu();
-        } catch (err) {
+        } catch {
             alert('Failed to import data: invalid file.');
         }
     };
@@ -261,11 +270,19 @@ btnClearStats.onclick = clearStats;
 btnCloseStats.onclick = showMenu;
 btnBackMenu.onclick = showMenu;
 
+btnExportData.onclick = exportData;
+
+btnImportData.onclick = () => {
+    fileImportInput.value = null; // reset so same file can be reimported
+    fileImportInput.click();
+};
+
+fileImportInput.onchange = importData;
+
 recogInput.onchange = () => {
     let v = parseFloat(recogInput.value);
     if (isNaN(v) || v < 0) { v = 5; recogInput.value = v; }
     recognitionTime = v * 1000;
-    // clear stats on time change if desired:
     missedIndices.oll.clear();
     missedIndices.pll.clear();
     practiceMissedIndices = [];
@@ -294,15 +311,6 @@ document.addEventListener('keydown', e => {
             break;
     }
 });
-
-btnExportData.onclick = exportData;
-
-btnImportData.onclick = () => {
-    fileImportInput.value = null; // reset so same file can be reimported
-    fileImportInput.click();
-};
-
-fileImportInput.onchange = importData;
 
 // ——— Init ———
 showMenu();
