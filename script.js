@@ -48,7 +48,8 @@ function renderCube(alg, options = {}) {
     player.setAttribute('hint-facelets', 'none');
     if (selectCategory.value === 'oll') {
         player.setAttribute('experimental-stickering', 'OLL');
-    }
+    } else {
+        player.setAttribute('experimental-stickering', 'PLL');
     player.setAttribute('control-panel', 'none');
     player.setAttribute('camera', 'top');
     player.style.width = '200px';
