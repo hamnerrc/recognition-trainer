@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Recog Trainer</title>
+    <script src="https://cdn.cubing.net/v0/js/cubing/twisty" type="module"></script>
+    <style>
+        /* ——— Dark theme & layout ——— */
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #ddd;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            user-select: none;
+        }
+
+        .container {
+            background-color: #222;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px #000;
+            text-align: center;
+            width: 320px;
+        }
+
+        h1,
+        h3 {
+            margin-bottom: 10px;
+            color: #eee;
+        }
+
+        #cube-container,
+        #answer {
+            margin: 20px auto;
+            width: 200px;
+            height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #answerButtons {
+            margin-top: 10px;
+            display: none;
+        }
+
+        #statsScreen {
+            display: none;
+            margin-top: 10px;
+        }
+
+        #statsCards {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        #statsCards>div {
+            background-color: #333;
+            width: 100px;
+            height: 100px;
+            border: 1px solid #555;
+            border-radius: 8px;
+            padding: 5px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* buttons, inputs, select */
+        button,
+        input[type="number"],
+        select {
+            background-color: #444;
+            color: #ddd;
+            border: none;
+            border-radius: 5px;
+            margin: 10px auto;
+            width: 180px;
+            padding: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            display: block;
+        }
+
+        button:hover,
+        input[type="number"]:hover,
+        select:hover {
+            background-color: #666;
+        }
+
+        input[type="number"] {
+            width: 60px;
+            margin-left: 10px;
+            padding: 5px;
+            background-color: #333;
+            border: 1px solid #555;
+            display: inline-block;
+        }
+
+        label {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #ddd;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        #btn-back-menu {
+            display: none;
+            margin-top: 15px;
+            width: auto;
+            padding: 8px 16px;
+        }
+
+        /* ——— Strip out twisty-player animations ——— */
+        twisty-player,
+        twisty-player * {
+            opacity: 1 !important;
+            transition: none !important;
+            animation: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container" tabindex="0" id="main-container">
+        <div id="menu-screen">
+            <h1>Recog Trainer</h1>
+            <button id="btn-start">Start</button>
+            <button id="btn-practice-missed">Practice Missed</button>
+            <button id="btn-show-stats">Show Stats</button>
+            <button id="btn-export-data">Export Data</button>
+            <button id="btn-import-data">Import Data</button>
+            <input type="file" id="file-import" accept=".json" style="display:none" />
+
+            <label>
+                Recognition time (s):
+                <input type="number" id="input-recog-time" min="0" max="10" step="0.05" value="5" />
+            </label>
+
+            <label>
+                Select Category:
+                <select id="select-category">
+                    <option value="oll">OLL</option>
+                    <option value="pll">PLL</option>
+                </select>
+            </label>
+        </div>
+
+        <div id="cube-container"></div>
+        <div id="answer"></div>
+
+        <div id="answerButtons">
+            <button id="btn-correct">Right (1)</button>
+            <button id="btn-wrong">Wrong (2)</button>
+        </div>
+
+        <div id="statsScreen">
+            <h3>Missed Cases</h3>
+            <div id="statsCards"></div>
+            <button id="btn-clear-stats">Clear Missed Stats</button>
+            <button id="btn-close-stats">Close Stats</button>
+        </div>
+
+        <button id="btn-back-menu">Back to Menu (Esc)</button>
+    </div>
+
+    <script src="cards.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>
