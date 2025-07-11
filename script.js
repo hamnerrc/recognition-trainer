@@ -15,14 +15,13 @@ const statsScreen = document.getElementById('statsScreen');
 const statsCards = document.getElementById('statsCards');
 const recogInput = document.getElementById('input-recog-time');
 const selectCategory = document.getElementById('select-category');
-
 const btnExportData = document.getElementById('btn-export-data');
 const btnImportData = document.getElementById('btn-import-data');
 const fileImportInput = document.getElementById('file-import');
 
 // ——— State ———
 let currentCardIndex = 0;
-let stage = 'idle'; // idle, showing, waitingAnswer, grading, waitingNext
+let stage = 'idle';       // idle, showing, waitingAnswer, grading, waitingNext
 let recognitionTime = parseFloat(recogInput.value) * 1000;
 let practiceMissedMode = false;
 
@@ -65,15 +64,11 @@ function renderCube(alg, options = {}) {
     return player;
 }
 
-function showPressSpacePrompt() {
-    container.innerHTML = '';
-    const prompt = document.createElement('div');
-    prompt.style.color = '#bbb';
-    prompt.style.fontSize = '16px';
-    prompt.style.fontStyle = 'italic';
-    prompt.style.margin = 'auto';
-    prompt.textContent = 'Press SPACE to continue';
-    container.appendChild(prompt);
+function showPressSpaceMessage(targetElement) {
+    targetElement.innerHTML = '<div style="color:#aaa; font-size:14px; margin-top: 10px;">Press Space to continue</div>';
+    targetElement.style.display = 'flex';
+    targetElement.style.justifyContent = 'center';
+    targetElement.style.alignItems = 'center';
 }
 
 // ——— UI States ———
@@ -126,8 +121,8 @@ function startCard() {
 
     setTimeout(() => {
         container.innerHTML = '';
+        showPressSpaceMessage(container);  // added message here
         stage = 'waitingAnswer';
-        showPressSpacePrompt();
     }, recognitionTime);
 }
 
@@ -136,10 +131,11 @@ function showAnswer() {
     const card = cards[currentCardIndex];
 
     answerElement.innerHTML = '';
-    answerElement.appendChild(renderCube(card.alg, { visualization: '2d' }));
+    answerElement.appendChild(
+        renderCube(card.alg, { visualization: '2d' })
+    );
     answerElement.style.display = 'block';
     answerButtons.style.display = 'block';
-    container.innerHTML = '';
     stage = 'grading';
 }
 
@@ -149,8 +145,8 @@ function grade(correct) {
     answerButtons.style.display = 'none';
     answerElement.style.display = 'none';
     container.innerHTML = '';
+    showPressSpaceMessage(container);  // added message here
     stage = 'waitingNext';
-    showPressSpacePrompt();
 }
 
 function nextCard() {
@@ -202,7 +198,7 @@ function clearStats() {
     }
 }
 
-// ——— Import/Export Data ———
+// ——— Import/Export ———
 function exportData() {
     const data = {
         missedIndices: {
@@ -250,7 +246,7 @@ function importData(event) {
             }
             alert('Data imported successfully.');
             showMenu();
-        } catch {
+        } catch (err) {
             alert('Failed to import data: invalid file.');
         }
     };
@@ -269,15 +265,6 @@ btnShowStats.onclick = showStats;
 btnClearStats.onclick = clearStats;
 btnCloseStats.onclick = showMenu;
 btnBackMenu.onclick = showMenu;
-
-btnExportData.onclick = exportData;
-
-btnImportData.onclick = () => {
-    fileImportInput.value = null; // reset so same file can be reimported
-    fileImportInput.click();
-};
-
-fileImportInput.onchange = importData;
 
 recogInput.onchange = () => {
     let v = parseFloat(recogInput.value);
@@ -311,6 +298,15 @@ document.addEventListener('keydown', e => {
             break;
     }
 });
+
+btnExportData.onclick = exportData;
+
+btnImportData.onclick = () => {
+    fileImportInput.value = null; // reset so same file can be reimported
+    fileImportInput.click();
+};
+
+fileImportInput.onchange = importData;
 
 // ——— Init ———
 showMenu();
