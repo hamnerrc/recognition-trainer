@@ -43,26 +43,33 @@ function getMissedSet() {
 
 function renderCube(alg, options = {}) {
     const player = document.createElement('twisty-player');
+
+    // --- Core attributes set before attach ---
     player.setAttribute('alg', alg);
     player.setAttribute('experimental-setup-anchor', 'end');
     player.setAttribute('hint-facelets', 'none');
-    if (selectCategory.value === 'oll') {
+    player.setAttribute('camera', 'top');
+    player.setAttribute('control-panel', 'none');
+    player.setAttribute('background', 'none');
+
+    // Explicitly set visualization mode
+    if (options.visualization === '2d') {
+        player.setAttribute('visualization', 'experimental-2D-LL');
+    }
+
+    // Ensure correct stickering based on passed category, not DOM
+    const category = options.category || selectCategory.value;
+    if (category === 'oll') {
         player.setAttribute('experimental-stickering', 'OLL');
     } else {
         player.setAttribute('experimental-stickering', 'PLL');
     }
-    player.setAttribute('control-panel', 'none');
-    player.setAttribute('camera', 'top');
+
+    // Style (optional)
     player.style.width = '200px';
     player.style.height = '200px';
     player.style.margin = 'auto';
 
-    if (options.visualization === '2d') {
-        player.setAttribute('visualization', 'experimental-2D-LL');
-        player.setAttribute('background', 'none');
-    } else {
-        player.setAttribute('background', 'none');
-    }
     return player;
 }
 
