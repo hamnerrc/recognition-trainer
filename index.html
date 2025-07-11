@@ -14,12 +14,10 @@
             font-family: Arial, sans-serif;
             background-color: #121212;
             color: #ddd;
-            /* Remove fixed height and vertical centering */
             min-height: 100vh;
             display: flex;
             justify-content: center;
-            /* Remove align-items: center */
-            flex-direction: column; /* optional, helps stacking */
+            align-items: center;
             user-select: none;
         }
 
@@ -29,10 +27,14 @@
     border-radius: 10px;
     box-shadow: 0 0 15px #000;
     text-align: center;
-    width: 320px;
-    max-height: 90vh; /* limits max container height */
-    overflow-y: auto; /* enables vertical scrolling if content is too tall */
-    box-sizing: border-box; /* includes padding in width/height */
+    width: 100vw;
+    height: 100vh;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow-y: auto;
 }
 
         h1,
