@@ -18,19 +18,29 @@ const selectCategory = document.getElementById('select-category');
 const btnExportData = document.getElementById('btn-export-data');
 const btnImportData = document.getElementById('btn-import-data');
 const fileImportInput = document.getElementById('file-import');
+const statsDisplay = document.getElementById('live-stats');
 
 // ——— State ———
 let currentCardIndex = 0;
-let stage = 'idle';       // idle, showing, waitingAnswer, grading, waitingNext
+let stage = 'idle';
 let recognitionTime = parseFloat(recogInput.value) * 1000;
 let practiceMissedMode = false;
 
-// missedIndices separated per category
 const missedIndices = {
     oll: new Set(),
     pll: new Set()
 };
 let practiceMissedIndices = [];
+
+const seenSet = {
+    oll: new Set(),
+    pll: new Set()
+};
+
+const correctSet = {
+    oll: new Set(),
+    pll: new Set()
+};
 
 // ——— Helpers ———
 function getCards() {
@@ -41,35 +51,30 @@ function getMissedSet() {
     return selectCategory.value === 'oll' ? missedIndices.oll : missedIndices.pll;
 }
 
+function getSeenSet() {
+    return selectCategory.value === 'oll' ? seenSet.oll : seenSet.pll;
+}
+
+function getCorrectSet() {
+    return selectCategory.value === 'oll' ? correctSet.oll : correctSet.pll;
+}
+
 function renderCube(alg, options = {}) {
     const player = document.createElement('twisty-player');
-
-    // --- Core attributes set before attach ---
     player.setAttribute('alg', alg);
     player.setAttribute('experimental-setup-anchor', 'end');
     player.setAttribute('hint-facelets', 'none');
     player.setAttribute('camera', 'top');
     player.setAttribute('control-panel', 'none');
     player.setAttribute('background', 'none');
-
-    // Explicitly set visualization mode
     if (options.visualization === '2d') {
         player.setAttribute('visualization', 'experimental-2D-LL');
     }
-
-    // Ensure correct stickering based on passed category, not DOM
     const category = options.category || selectCategory.value;
-    if (category === 'oll') {
-        player.setAttribute('experimental-stickering', 'OLL');
-    } else {
-        player.setAttribute('experimental-stickering', 'PLL');
-    }
-
-    // Style (optional)
+    player.setAttribute('experimental-stickering', category.toUpperCase());
     player.style.width = '200px';
     player.style.height = '200px';
     player.style.margin = 'auto';
-
     return player;
 }
 
@@ -78,6 +83,15 @@ function showPressSpaceMessage(targetElement) {
     targetElement.style.display = 'flex';
     targetElement.style.justifyContent = 'center';
     targetElement.style.alignItems = 'center';
+}
+
+function updateLiveStats() {
+    const cat = selectCategory.value;
+    const time = (recognitionTime / 1000).toFixed(2);
+    const seen = seenSet[cat].size;
+    const correct = correctSet[cat].size;
+    const acc = seen > 0 ? ((correct / seen) * 100).toFixed(1) : '—';
+    statsDisplay.textContent = `Overall: ${acc}% accuracy on ${time}s recog ${cat.toUpperCase()} (${correct}/${seen})`;
 }
 
 // ——— UI States ———
@@ -92,6 +106,8 @@ function showMenu() {
     statsScreen.style.display = 'none';
     menuScreen.style.display = 'block';
     btnBackMenu.style.display = 'none';
+    statsDisplay.style.display = 'block';
+    updateLiveStats();
 }
 
 function enterGameUI() {
@@ -106,7 +122,6 @@ function enterGameUI() {
 // ——— Core Flow ———
 function startCard() {
     enterGameUI();
-
     const cards = getCards();
     const missedSet = getMissedSet();
 
@@ -130,7 +145,7 @@ function startCard() {
 
     setTimeout(() => {
         container.innerHTML = '';
-        showPressSpaceMessage(container);  // added message here
+        showPressSpaceMessage(container);
         stage = 'waitingAnswer';
     }, recognitionTime);
 }
@@ -149,12 +164,23 @@ function showAnswer() {
 }
 
 function grade(correct) {
+    const cat = selectCategory.value;
+    seenSet[cat].add(currentCardIndex);
+    if (correct) {
+        correctSet[cat].add(currentCardIndex);
+    }
+
     const missedSet = getMissedSet();
     if (!correct) missedSet.add(currentCardIndex);
+    else missedSet.delete(currentCardIndex);
+
+    updateLiveStats();
+    saveStats();
+
     answerButtons.style.display = 'none';
     answerElement.style.display = 'none';
     container.innerHTML = '';
-    showPressSpaceMessage(container);  // added message here
+    showPressSpaceMessage(container);
     stage = 'waitingNext';
 }
 
@@ -173,11 +199,22 @@ function showStats() {
     btnBackMenu.style.display = 'inline-block';
     statsScreen.style.display = 'block';
     statsCards.innerHTML = '';
+    statsDisplay.style.display = 'none';
 
+    const cat = selectCategory.value;
     const cards = getCards();
     const missedSet = getMissedSet();
+    const seen = seenSet[cat].size;
+    const correct = correctSet[cat].size;
+    const acc = seen > 0 ? ((correct / seen) * 100).toFixed(1) : '—';
+
+    const summary = document.createElement('div');
+    summary.style.marginBottom = '10px';
+    summary.textContent = `Accuracy: ${acc}% (${correct}/${seen})`;
+    statsCards.appendChild(summary);
+
     if (!missedSet.size) {
-        statsCards.textContent = 'No missed cases yet.';
+        statsCards.appendChild(document.createTextNode('No missed cases yet.'));
         return;
     }
 
@@ -200,70 +237,51 @@ function showStats() {
 }
 
 function clearStats() {
-    if (confirm('Clear all missed stats for this category?')) {
-        getMissedSet().clear();
+    if (confirm('Clear all missed and accuracy stats for this category?')) {
+        const cat = selectCategory.value;
+        missedIndices[cat].clear();
+        seenSet[cat].clear();
+        correctSet[cat].clear();
         practiceMissedIndices = [];
+        saveStats();
         showMenu();
     }
 }
 
-// ——— Import/Export ———
-function exportData() {
-    const data = {
-        missedIndices: {
-            oll: Array.from(missedIndices.oll),
-            pll: Array.from(missedIndices.pll),
-        },
-        recognitionTime: recognitionTime / 1000,
-        practiceMissedIndices: practiceMissedIndices.slice(),
-        selectCategory: selectCategory.value,
-    };
-
-    const jsonStr = JSON.stringify(data, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'recog-trainer-data.json';
-    a.click();
-
-    URL.revokeObjectURL(url);
+// ——— LocalStorage Persistence ———
+function saveStats() {
+    localStorage.setItem('seenSet', JSON.stringify({
+        oll: Array.from(seenSet.oll),
+        pll: Array.from(seenSet.pll)
+    }));
+    localStorage.setItem('correctSet', JSON.stringify({
+        oll: Array.from(correctSet.oll),
+        pll: Array.from(correctSet.pll)
+    }));
 }
 
-function importData(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = e => {
-        try {
-            const data = JSON.parse(e.target.result);
-            if (data.missedIndices) {
-                missedIndices.oll = new Set(data.missedIndices.oll || []);
-                missedIndices.pll = new Set(data.missedIndices.pll || []);
-            }
-            if (typeof data.recognitionTime === 'number') {
-                recognitionTime = data.recognitionTime * 1000;
-                recogInput.value = data.recognitionTime;
-            }
-            if (Array.isArray(data.practiceMissedIndices)) {
-                practiceMissedIndices = data.practiceMissedIndices;
-            }
-            if (data.selectCategory && (data.selectCategory === 'oll' || data.selectCategory === 'pll')) {
-                selectCategory.value = data.selectCategory;
-            }
-            alert('Data imported successfully.');
-            showMenu();
-        } catch (err) {
-            alert('Failed to import data: invalid file.');
+function loadStats() {
+    try {
+        const seenData = JSON.parse(localStorage.getItem('seenSet'));
+        const correctData = JSON.parse(localStorage.getItem('correctSet'));
+        if (seenData) {
+            seenSet.oll = new Set(seenData.oll || []);
+            seenSet.pll = new Set(seenData.pll || []);
         }
-    };
-    reader.readAsText(file);
+        if (correctData) {
+            correctSet.oll = new Set(correctData.oll || []);
+            correctSet.pll = new Set(correctData.pll || []);
+        }
+    } catch (e) {
+        console.warn("Failed to load stats from localStorage.");
+    }
 }
 
 // ——— Event Listeners ———
-btnStart.onclick = () => { practiceMissedMode = false; startCard(); };
+btnStart.onclick = () => {
+    practiceMissedMode = false;
+    startCard();
+};
 btnPracticeMissed.onclick = () => {
     if (!getMissedSet().size) { alert('No missed cases!'); return; }
     practiceMissedMode = true;
@@ -279,11 +297,8 @@ recogInput.onchange = () => {
     let v = parseFloat(recogInput.value);
     if (isNaN(v) || v < 0) { v = 5; recogInput.value = v; }
     recognitionTime = v * 1000;
-    missedIndices.oll.clear();
-    missedIndices.pll.clear();
-    practiceMissedIndices = [];
-    alert('Recognition time changed; all stats cleared.');
-    showMenu();
+    alert('Recognition time changed. Stats preserved.');
+    updateLiveStats();
 };
 
 btnCorrect.onclick = () => grade(true);
@@ -308,14 +323,7 @@ document.addEventListener('keydown', e => {
     }
 });
 
-btnExportData.onclick = exportData;
-
-btnImportData.onclick = () => {
-    fileImportInput.value = null; // reset so same file can be reimported
-    fileImportInput.click();
-};
-
-fileImportInput.onchange = importData;
-
 // ——— Init ———
+loadStats();
+updateLiveStats();
 showMenu();
