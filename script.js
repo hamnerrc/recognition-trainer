@@ -15,9 +15,6 @@ const statsScreen = document.getElementById('statsScreen');
 const statsCards = document.getElementById('statsCards');
 const recogInput = document.getElementById('input-recog-time');
 const selectCategory = document.getElementById('select-category');
-const btnExportData = document.getElementById('btn-export-data');
-const btnImportData = document.getElementById('btn-import-data');
-const fileImportInput = document.getElementById('file-import');
 const statsDisplay = document.getElementById('live-stats');
 
 // ——— State ———
@@ -25,22 +22,12 @@ let currentCardIndex = 0;
 let stage = 'idle';
 let recognitionTime = parseFloat(recogInput.value) * 1000;
 let practiceMissedMode = false;
-
-const missedIndices = {
-    oll: new Set(),
-    pll: new Set()
-};
+const missedIndices = { oll: new Set(), pll: new Set() };
 let practiceMissedIndices = [];
+const seenSet = { oll: new Set(), pll: new Set() };
+const correctSet = { oll: new Set(), pll: new Set() };
 
-const seenSet = {
-    oll: new Set(),
-    pll: new Set()
-};
-
-const correctSet = {
-    oll: new Set(),
-    pll: new Set()
-};
+let caseImages = { oll: {}, pll: {} };   // Will hold base64 images from ll-images.json
 
 // ——— Helpers ———
 function getCards() {
@@ -59,7 +46,26 @@ function getCorrectSet() {
     return selectCategory.value === 'oll' ? correctSet.oll : correctSet.pll;
 }
 
-function renderCube(alg, options = {}) {
+function renderStaticImage(index) {
+    const cat = selectCategory.value;
+    const imgSrc = caseImages[cat][index];
+    if (!imgSrc) {
+        console.warn(`No image for ${cat} #${index}`);
+        const div = document.createElement('div');
+        div.textContent = 'Image missing';
+        div.style.color = '#f66';
+        return div;
+    }
+
+    const img = document.createElement('img');
+    img.src = imgSrc;
+    img.style.width = '200px';
+    img.style.height = '200px';
+    img.style.display = 'block';
+    return img;
+}
+
+function renderCubeForAnswer(alg) {
     const player = document.createElement('twisty-player');
     player.setAttribute('alg', alg);
     player.setAttribute('experimental-setup-anchor', 'end');
@@ -67,22 +73,11 @@ function renderCube(alg, options = {}) {
     player.setAttribute('camera', 'top');
     player.setAttribute('control-panel', 'none');
     player.setAttribute('background', 'none');
-    if (options.visualization === '2d') {
-        player.setAttribute('visualization', 'experimental-2D-LL');
-    }
-    const category = options.category || selectCategory.value;
-    player.setAttribute('experimental-stickering', category.toUpperCase());
+    player.setAttribute('visualization', 'experimental-2D-LL');
+    player.setAttribute('experimental-stickering', selectCategory.value.toUpperCase());
     player.style.width = '200px';
     player.style.height = '200px';
-    player.style.margin = 'auto';
     return player;
-}
-
-function showPressSpaceMessage(targetElement) {
-    targetElement.innerHTML = '<div style="color:#aaa; font-size:14px; margin-top: 10px;">Press Space to continue</div>';
-    targetElement.style.display = 'flex';
-    targetElement.style.justifyContent = 'center';
-    targetElement.style.alignItems = 'center';
 }
 
 function updateLiveStats() {
@@ -120,7 +115,7 @@ function enterGameUI() {
 }
 
 // ——— Core Flow ———
-function startCard() {
+async function startCard() {
     enterGameUI();
     const cards = getCards();
     const missedSet = getMissedSet();
@@ -139,8 +134,10 @@ function startCard() {
     }
 
     const card = cards[currentCardIndex];
+
     container.innerHTML = '';
-    container.appendChild(renderCube(card.alg));
+    container.appendChild(renderStaticImage(currentCardIndex));   // ← Static image, instant & exact timing
+
     stage = 'showing';
 
     setTimeout(() => {
@@ -155,9 +152,7 @@ function showAnswer() {
     const card = cards[currentCardIndex];
 
     answerElement.innerHTML = '';
-    answerElement.appendChild(
-        renderCube(card.alg, { visualization: '2d' })
-    );
+    answerElement.appendChild(renderCubeForAnswer(card.alg));
     answerElement.style.display = 'block';
     answerButtons.style.display = 'block';
     stage = 'grading';
@@ -166,13 +161,9 @@ function showAnswer() {
 function grade(correct) {
     const cat = selectCategory.value;
     seenSet[cat].add(currentCardIndex);
-    if (correct) {
-        correctSet[cat].add(currentCardIndex);
-    }
-
-    const missedSet = getMissedSet();
-    if (!correct) missedSet.add(currentCardIndex);
-    else missedSet.delete(currentCardIndex);
+    if (correct) correctSet[cat].add(currentCardIndex);
+    else getMissedSet().add(currentCardIndex);
+    if (correct) getMissedSet().delete(currentCardIndex);
 
     updateLiveStats();
     saveStats();
@@ -191,6 +182,13 @@ function nextCard() {
         return;
     }
     startCard();
+}
+
+function showPressSpaceMessage(targetElement) {
+    targetElement.innerHTML = '<div style="color:#aaa; font-size:14px; margin-top: 10px;">Press Space to continue</div>';
+    targetElement.style.display = 'flex';
+    targetElement.style.justifyContent = 'center';
+    targetElement.style.alignItems = 'center';
 }
 
 // ——— Stats ———
@@ -222,10 +220,11 @@ function showStats() {
         const card = cards[i];
         const div = document.createElement('div');
         div.title = card.alg;
-        const cube = renderCube(card.alg, { visualization: '2d' });
-        cube.style.width = '90px';
-        cube.style.height = '90px';
-        div.appendChild(cube);
+        const img = document.createElement('img');
+        img.src = caseImages[cat][i] || '';
+        img.style.width = '90px';
+        img.style.height = '90px';
+        div.appendChild(img);
         div.onclick = () => {
             practiceMissedMode = true;
             practiceMissedIndices = [i];
@@ -248,7 +247,7 @@ function clearStats() {
     }
 }
 
-// ——— LocalStorage Persistence ———
+// ——— Persistence ———
 function saveStats() {
     localStorage.setItem('seenSet', JSON.stringify({
         oll: Array.from(seenSet.oll),
@@ -277,11 +276,30 @@ function loadStats() {
     }
 }
 
+// ——— Load Images ———
+async function loadCaseImages() {
+    try {
+        // Try relative path first (works on GitHub Pages and local servers)
+        let res = await fetch('ll-images.json');
+
+        // Fallback for raw GitHub if someone views the raw HTML (rare)
+        if (!res.ok && window.location.hostname.includes('githubusercontent.com')) {
+            const repoPath = window.location.pathname.split('/').slice(0, -1).join('/');
+            res = await fetch(`${repoPath}/ll-images.json`);
+        }
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+        caseImages = await res.json();
+        console.log(`✅ Loaded ${Object.keys(caseImages.oll).length} OLL + ${Object.keys(caseImages.pll).length} PLL static images`);
+    } catch (e) {
+        console.error('Failed to load ll-images.json', e);
+        alert('Could not load ll-images.json.\n\nMake sure the file is in the same folder as index.html and you are viewing the page through a web server or GitHub Pages (not file://).');
+    }
+}
+
 // ——— Event Listeners ———
-btnStart.onclick = () => {
-    practiceMissedMode = false;
-    startCard();
-};
+btnStart.onclick = () => { practiceMissedMode = false; startCard(); };
 btnPracticeMissed.onclick = () => {
     if (!getMissedSet().size) { alert('No missed cases!'); return; }
     practiceMissedMode = true;
@@ -295,9 +313,8 @@ btnBackMenu.onclick = showMenu;
 
 recogInput.onchange = () => {
     let v = parseFloat(recogInput.value);
-    if (isNaN(v) || v < 0) { v = 5; recogInput.value = v; }
+    if (isNaN(v) || v < 0) { v = 1; recogInput.value = v; }
     recognitionTime = v * 1000;
-    alert('Recognition time changed. Stats preserved.');
     updateLiveStats();
 };
 
@@ -324,6 +341,11 @@ document.addEventListener('keydown', e => {
 });
 
 // ——— Init ———
-loadStats();
-updateLiveStats();
-showMenu();
+async function init() {
+    loadStats();
+    await loadCaseImages();     // ← Critical: load images before starting
+    updateLiveStats();
+    showMenu();
+}
+
+init();
