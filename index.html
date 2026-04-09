@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -20,15 +19,14 @@
             align-items: center;
             user-select: none;
         }
-
         .container {
             background-color: #222;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 0 15px #000;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 0 20px #000;
             text-align: center;
             width: 100%;
-            max-width: 420px;
+            max-width: 520px;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
@@ -36,104 +34,118 @@
             overflow-y: auto;
             max-height: 95vh;
         }
-
-        h1,
-        h3 {
+        h1, h3 {
             margin: 10px 0;
             color: #eee;
         }
-
         #cube-container,
         #answer {
-            margin: 10px 0;
-            width: 200px;
-            height: 200px;
+            margin: 15px 0;
+            width: 400px;
+            height: 400px;
             display: flex;
             justify-content: center;
             align-items: center;
+            background-color: #1a1a1a;
+            border-radius: 8px;
+            border: 2px solid #333;
+            position: relative;
         }
-
         #answerButtons {
-            margin-top: 10px;
+            margin-top: 15px;
             display: none;
         }
-
         #statsScreen {
             display: none;
             margin-top: 10px;
+            width: 100%;
         }
-
         #statsCards {
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 10px;
+            gap: 12px;
         }
-
-        #statsCards>div {
+        #statsCards > div {
             background-color: #333;
-            width: 90px;
-            height: 90px;
-            border: 1px solid #555;
-            border-radius: 8px;
-            padding: 5px;
+            width: 110px;
+            height: 110px;
+            border: 2px solid #555;
+            border-radius: 10px;
+            padding: 6px;
             cursor: pointer;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
+            position: relative;
         }
-
+        #statsCards > div:hover {
+            border-color: #777;
+        }
+        .remove-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: #f44;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 22px;
+            height: 22px;
+            font-size: 14px;
+            line-height: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
         button,
         input[type="number"],
         select {
             background-color: #444;
             color: #ddd;
             border: none;
-            border-radius: 5px;
-            margin: 6px 0;
-            width: 180px;
-            padding: 8px;
-            font-size: 14px;
+            border-radius: 6px;
+            margin: 8px 0;
+            width: 200px;
+            padding: 12px;
+            font-size: 15px;
             cursor: pointer;
             transition: background-color 0.2s ease;
         }
-
         button:hover,
         input[type="number"]:hover,
         select:hover {
             background-color: #666;
         }
-
         input[type="number"] {
-            width: 60px;
+            width: 70px;
             margin-left: 10px;
-            padding: 5px;
+            padding: 8px;
             background-color: #333;
             border: 1px solid #555;
         }
-
         label {
             display: flex;
             justify-content: center;
             align-items: center;
             color: #ddd;
-            font-size: 14px;
-            margin-top: 5px;
+            font-size: 15px;
+            margin: 8px 0;
         }
-
         #btn-back-menu {
             display: none;
-            margin-top: 10px;
+            margin-top: 15px;
             width: auto;
-            padding: 6px 14px;
+            padding: 8px 18px;
         }
-
         #live-stats {
-            margin-top: 10px;
-            font-size: 14px;
+            margin-top: 12px;
+            font-size: 15px;
             color: #aaa;
         }
-
+        /* Keep twisty-player clean */
         twisty-player,
         twisty-player * {
             opacity: 1 !important;
@@ -142,23 +154,20 @@
         }
     </style>
 </head>
-
 <body>
     <div class="container" tabindex="0" id="main-container">
         <div id="menu-screen">
             <h1>Recog Trainer</h1>
-            <button id="btn-start">Start</button>
-            <button id="btn-practice-missed">Practice Missed</button>
+            <button id="btn-start">Start Training</button>
+            <button id="btn-practice-missed">Practice Missed Cases</button>
             <button id="btn-show-stats">Show Stats</button>
-            <input type="file" id="file-import" accept=".json" style="display:none" />
 
             <label>
                 Recognition time:
                 <input type="number" id="input-recog-time" min="0.1" max="10" step="0.01" value="1" />
             </label>
-
             <label>
-                Select Category:
+                Category:
                 <select id="select-category">
                     <option value="oll">OLL</option>
                     <option value="pll">PLL</option>
@@ -178,7 +187,7 @@
         <div id="statsScreen">
             <h3>Missed Cases</h3>
             <div id="statsCards"></div>
-            <button id="btn-clear-stats">Clear Missed Stats</button>
+            <button id="btn-clear-stats">Clear All Stats</button>
             <button id="btn-close-stats">Close Stats</button>
         </div>
 
@@ -188,5 +197,4 @@
     <script src="LL-database.js"></script>
     <script src="script.js"></script>
 </body>
-
 </html>
