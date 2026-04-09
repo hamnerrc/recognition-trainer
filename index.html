@@ -39,15 +39,14 @@
             color: #eee;
         }
 
-        /* FIXED VISUAL SLOT - this never moves */
+        /* FIXED VISUAL SLOT — never moves, no visible box */
         #visual-slot {
             position: relative;
             width: 400px;
             height: 400px;
-            margin: 15px 0;
-            background-color: #1a1a1a;
-            border-radius: 8px;
-            border: 2px solid #333;
+            margin: 20px 0;
+            background: transparent;
+            border: none;
         }
         #cube-container,
         #answer {
@@ -152,7 +151,8 @@
             font-size: 15px;
             color: #aaa;
         }
-        twisty-player, twisty-player * {
+        twisty-player,
+        twisty-player * {
             opacity: 1 !important;
             transition: none !important;
             animation: none !important;
@@ -180,7 +180,7 @@
             </label>
         </div>
 
-        <!-- FIXED SLOT - question and answer occupy the exact same space -->
+        <!-- FIXED SLOT — question and answer are always in the exact same place -->
         <div id="visual-slot">
             <div id="cube-container"></div>
             <div id="answer"></div>
