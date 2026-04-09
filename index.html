@@ -39,14 +39,13 @@
             color: #eee;
         }
 
-        /* FIXED VISUAL SLOT — never moves, no visible box */
+        /* FIXED VISUAL SLOT — question and answer stay perfectly still */
         #visual-slot {
             position: relative;
             width: 400px;
             height: 400px;
-            margin: 20px 0;
+            margin: 15px 0 8px 0;
             background: transparent;
-            border: none;
         }
         #cube-container,
         #answer {
@@ -62,8 +61,15 @@
             display: none;
         }
 
+        #press-space {
+            margin: 8px 0 15px 0;
+            color: #aaa;
+            font-size: 15px;
+            min-height: 22px;
+        }
+
         #answerButtons {
-            margin-top: 15px;
+            margin-top: 10px;
             display: none;
         }
         #statsScreen {
@@ -180,11 +186,14 @@
             </label>
         </div>
 
-        <!-- FIXED SLOT — question and answer are always in the exact same place -->
+        <!-- FIXED 400px slot — question and answer never move -->
         <div id="visual-slot">
             <div id="cube-container"></div>
             <div id="answer"></div>
         </div>
+
+        <!-- Press Space message is now OUTSIDE the visual slot -->
+        <div id="press-space"></div>
 
         <div id="live-stats"></div>
 
