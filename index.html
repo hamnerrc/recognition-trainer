@@ -2,51 +2,69 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Recog Trainer</title>
     <script src="https://cdn.cubing.net/v0/js/cubing/twisty" type="module"></script>
     <style>
-        /* ——— Dark theme & layout ——— */
+        :root {
+            color-scheme: dark;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             margin: 0;
-            padding: 0;
+            padding: 12px;
             font-family: Arial, sans-serif;
             background-color: #121212;
             color: #ddd;
-            min-height: 100vh;
+            min-height: 100dvh;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             user-select: none;
+            touch-action: manipulation;
         }
+
         .container {
             background-color: #222;
-            padding: 25px;
+            padding: 18px;
             border-radius: 12px;
             box-shadow: 0 0 20px #000;
             text-align: center;
             width: 100%;
             max-width: 520px;
-            box-sizing: border-box;
             display: flex;
             flex-direction: column;
             align-items: center;
             overflow-y: auto;
-            max-height: 95vh;
+            max-height: calc(100dvh - 24px);
         }
+
         h1, h3 {
             margin: 10px 0;
             color: #eee;
         }
 
-        /* FIXED VISUAL SLOT — question and answer stay perfectly still */
+        #menu-screen,
+        #statsScreen,
+        #answerButtons {
+            width: 100%;
+        }
+
         #visual-slot {
             position: relative;
-            width: 400px;
-            height: 400px;
-            margin: 15px 0 8px 0;
+            width: min(92vw, 92dvh, 400px);
+            aspect-ratio: 1 / 1;
+            margin: 14px 0 8px 0;
             background: transparent;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
+
         #cube-container,
         #answer {
             position: absolute;
@@ -57,36 +75,101 @@
             width: 100%;
             height: 100%;
         }
+
         #answer {
             display: none;
         }
 
         #press-space {
-            margin: 8px 0 15px 0;
+            margin: 8px 0 10px 0;
             color: #aaa;
             font-size: 15px;
             min-height: 22px;
         }
 
-        #answerButtons {
-            margin-top: 10px;
-            display: none;
+        button,
+        input[type="number"],
+        select {
+            background-color: #444;
+            color: #ddd;
+            border: none;
+            border-radius: 8px;
+            margin: 8px 0;
+            width: min(100%, 320px);
+            padding: 13px 14px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            -webkit-tap-highlight-color: transparent;
         }
+
+        button:hover,
+        input[type="number"]:hover,
+        select:hover {
+            background-color: #666;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: default;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            max-width: 180px;
+            padding: 10px 12px;
+            background-color: #333;
+            border: 1px solid #555;
+        }
+
+        label {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 6px;
+            color: #ddd;
+            font-size: 15px;
+            margin: 10px 0;
+            width: 100%;
+            max-width: 320px;
+            text-align: left;
+        }
+
+        #btn-primary-action {
+            display: none;
+            width: min(100%, 320px);
+            margin-top: 4px;
+        }
+
+        #answerButtons {
+            display: none;
+            margin-top: 10px;
+            gap: 10px;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #answerButtons button {
+            width: min(100%, 320px);
+        }
+
         #statsScreen {
             display: none;
             margin-top: 10px;
-            width: 100%;
         }
+
         #statsCards {
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
             gap: 12px;
+            width: 100%;
         }
+
         #statsCards > div {
             background-color: #333;
-            width: 110px;
-            height: 110px;
+            width: clamp(92px, 40vw, 110px);
+            height: clamp(92px, 40vw, 110px);
             border: 2px solid #555;
             border-radius: 10px;
             padding: 6px;
@@ -96,8 +179,20 @@
             justify-content: center;
             align-items: center;
             position: relative;
+            overflow: hidden;
         }
-        #statsCards > div:hover { border-color: #777; }
+
+        #statsCards > div:hover {
+            border-color: #777;
+        }
+
+        #statsCards img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+
         .remove-btn {
             position: absolute;
             top: 4px;
@@ -112,56 +207,43 @@
             line-height: 20px;
             cursor: pointer;
         }
-        button,
-        input[type="number"],
-        select {
-            background-color: #444;
-            color: #ddd;
-            border: none;
-            border-radius: 6px;
-            margin: 8px 0;
-            width: 200px;
-            padding: 12px;
-            font-size: 15px;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
-        }
-        button:hover,
-        input[type="number"]:hover,
-        select:hover {
-            background-color: #666;
-        }
-        input[type="number"] {
-            width: 70px;
-            margin-left: 10px;
-            padding: 8px;
-            background-color: #333;
-            border: 1px solid #555;
-        }
-        label {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            color: #ddd;
-            font-size: 15px;
-            margin: 8px 0;
-        }
+
         #btn-back-menu {
             display: none;
             margin-top: 15px;
-            width: auto;
-            padding: 8px 18px;
+            width: min(100%, 320px);
         }
+
         #live-stats {
             margin-top: 12px;
             font-size: 15px;
             color: #aaa;
+            min-height: 22px;
         }
+
         twisty-player,
         twisty-player * {
             opacity: 1 !important;
             transition: none !important;
             animation: none !important;
+        }
+
+        @media (max-width: 420px) {
+            .container {
+                padding: 14px;
+            }
+
+            button,
+            input[type="number"],
+            select,
+            #btn-primary-action,
+            #btn-back-menu {
+                width: 100%;
+            }
+
+            #visual-slot {
+                width: min(94vw, 94dvh, 360px);
+            }
         }
     </style>
 </head>
@@ -174,11 +256,12 @@
             <button id="btn-show-stats">Show Stats</button>
 
             <label>
-                Recognition time:
-                <input type="number" id="input-recog-time" min="0.1" max="10" step="0.01" value="1" />
+                <span>Recognition time:</span>
+                <input type="number" id="input-recog-time" min="0.1" max="10" step="0.01" value="1" inputmode="decimal" />
             </label>
+
             <label>
-                Category:
+                <span>Category:</span>
                 <select id="select-category">
                     <option value="oll">OLL</option>
                     <option value="pll">PLL</option>
@@ -186,14 +269,13 @@
             </label>
         </div>
 
-        <!-- FIXED 400px slot — question and answer never move -->
         <div id="visual-slot">
             <div id="cube-container"></div>
             <div id="answer"></div>
         </div>
 
-        <!-- Press Space message is now OUTSIDE the visual slot -->
         <div id="press-space"></div>
+        <button id="btn-primary-action">Reveal Answer</button>
 
         <div id="live-stats"></div>
 
