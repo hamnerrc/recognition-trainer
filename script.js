@@ -29,6 +29,62 @@ let recognitionTime = parseFloat(recogInput.value) * 1000;
 let practiceMissedMode = false;
 let practiceMissedIndices = [];
 
+// ——— Shuffled Deck ———
+// One queue per category. Works like a deck of cards:
+// all indices are shuffled into a queue; when exhausted the deck is
+// reshuffled, but the last NO_REPEAT_WINDOW cards are moved to the
+// back so they can't appear again until everyone else has been seen.
+const NO_REPEAT_WINDOW = 10;
+const deckQueue = { oll: [], pll: [], tbld: [] };
+const recentlyShown = { oll: [], pll: [], tbld: [] };
+
+function fisherYatesShuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
+function refillDeck(cat) {
+    const totalCards = getCards().length;
+    if (totalCards === 0) return;
+
+    const recent = recentlyShown[cat].slice(-NO_REPEAT_WINDOW);
+    const recentSet = new Set(recent);
+
+    // All indices NOT in the recent window go into the main pool
+    const pool = [];
+    for (let i = 0; i < totalCards; i++) {
+        if (!recentSet.has(i)) pool.push(i);
+    }
+    fisherYatesShuffle(pool);
+
+    // Append the recent ones at the end (also shuffled among themselves)
+    const tail = fisherYatesShuffle([...recent]);
+
+    deckQueue[cat] = [...pool, ...tail];
+}
+
+function drawNextIndex(cat) {
+    if (deckQueue[cat].length === 0) refillDeck(cat);
+    const idx = deckQueue[cat].shift();
+
+    // Track recently shown (keep a rolling window)
+    recentlyShown[cat].push(idx);
+    if (recentlyShown[cat].length > NO_REPEAT_WINDOW * 2) {
+        recentlyShown[cat].shift();
+    }
+
+    return idx;
+}
+
+// Invalidate deck when category changes so it rebuilds with correct size
+function resetDeck(cat) {
+    deckQueue[cat] = [];
+    recentlyShown[cat] = [];
+}
+
 const missedIndices = { oll: new Set(), pll: new Set(), tbld: new Set() };
 const seenSet = { oll: new Set(), pll: new Set(), tbld: new Set() };
 const correctSet = { oll: new Set(), pll: new Set(), tbld: new Set() };
@@ -288,7 +344,7 @@ async function startCard() {
         }
         currentCardIndex = practiceMissedIndices.shift();
     } else {
-        currentCardIndex = Math.floor(Math.random() * cards.length);
+        currentCardIndex = drawNextIndex(getCat());
     }
 
     clearGameView();
@@ -544,6 +600,7 @@ recogInput.oninput = () => {
 };
 
 selectCategory.onchange = () => {
+    resetDeck(getCat());
     updateTbldModeVisibility();
     updateLiveStats();
     if (statsScreen.style.display === 'block') {
