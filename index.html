@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Recog Trainer</title>
+    <title>Cube Trainer</title>
     <script src="https://cdn.cubing.net/v0/js/cubing/twisty" type="module"></script>
     <style>
         :root {
@@ -43,7 +44,8 @@
             max-height: calc(100dvh - 24px);
         }
 
-        h1, h3 {
+        h1,
+        h3 {
             margin: 10px 0;
             color: #eee;
         }
@@ -166,7 +168,7 @@
             width: 100%;
         }
 
-        #statsCards > div {
+        #statsCards>div {
             background-color: #333;
             width: clamp(92px, 40vw, 110px);
             height: clamp(92px, 40vw, 110px);
@@ -180,9 +182,10 @@
             align-items: center;
             position: relative;
             overflow: hidden;
+            gap: 4px;
         }
 
-        #statsCards > div:hover {
+        #statsCards>div:hover {
             border-color: #777;
         }
 
@@ -191,6 +194,30 @@
             height: 100%;
             object-fit: contain;
             display: block;
+        }
+
+        /* When a name label is present, shrink the image */
+        #statsCards>div.has-label img {
+            height: 72%;
+        }
+
+        #statsCards .case-name-label {
+            font-size: 0.68rem;
+            color: #ccc;
+            text-align: center;
+            line-height: 1.1;
+            width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Solver-mode missed card shows just the name */
+        #statsCards>div.solver-card {
+            font-size: clamp(0.9rem, 4vw, 1.2rem);
+            font-weight: bold;
+            color: #eee;
+            letter-spacing: 0.04em;
         }
 
         .remove-btn {
@@ -221,6 +248,33 @@
             min-height: 22px;
         }
 
+        /* TBLD mode selector — hidden unless tbld is chosen */
+        #tbld-mode-wrap {
+            display: none;
+            width: 100%;
+            max-width: 320px;
+        }
+
+        /* Name card shown in visual-slot for solver mode */
+        .name-card {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            font-size: clamp(2rem, 14vw, 4.5rem);
+            font-weight: bold;
+            color: #eee;
+            letter-spacing: 0.06em;
+            text-align: center;
+            padding: 12px;
+        }
+
+        /* Name card when shown as the answer */
+        .name-card-answer {
+            font-size: clamp(1.8rem, 11vw, 3.8rem);
+        }
+
         twisty-player,
         twisty-player * {
             opacity: 1 !important;
@@ -247,17 +301,19 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container" tabindex="0" id="main-container">
         <div id="menu-screen">
-            <h1>Recog Trainer</h1>
+            <h1>Cube Trainer</h1>
             <button id="btn-start">Start Training</button>
             <button id="btn-practice-missed">Practice Missed Cases</button>
             <button id="btn-show-stats">Show Stats</button>
 
             <label>
                 <span>Recognition time:</span>
-                <input type="number" id="input-recog-time" min="0.1" max="10" step="0.01" value="1" inputmode="decimal" />
+                <input type="number" id="input-recog-time" min="0.1" max="10" step="0.01" value="1"
+                    inputmode="decimal" />
             </label>
 
             <label>
@@ -265,8 +321,20 @@
                 <select id="select-category">
                     <option value="oll">OLL</option>
                     <option value="pll">PLL</option>
+                    <option value="tbld">Team Blind</option>
                 </select>
             </label>
+
+            <!-- Shown only when Team Blind is selected -->
+            <div id="tbld-mode-wrap">
+                <label>
+                    <span>Mode:</span>
+                    <select id="select-tbld-mode">
+                        <option value="solver">Solver — name → picture</option>
+                        <option value="speaker">Speaker — picture → name</option>
+                    </select>
+                </label>
+            </div>
         </div>
 
         <div id="visual-slot">
@@ -297,4 +365,5 @@
     <script src="LL-database.js"></script>
     <script src="script.js"></script>
 </body>
+
 </html>

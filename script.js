@@ -16,6 +16,8 @@ const statsScreen = document.getElementById('statsScreen');
 const statsCards = document.getElementById('statsCards');
 const recogInput = document.getElementById('input-recog-time');
 const selectCategory = document.getElementById('select-category');
+const selectTbldMode = document.getElementById('select-tbld-mode');
+const tbldModeWrap = document.getElementById('tbld-mode-wrap');
 const statsDisplay = document.getElementById('live-stats');
 const promptText = document.getElementById('press-space');
 const visualSlot = document.getElementById('visual-slot');
@@ -26,36 +28,43 @@ let stage = 'idle';
 let recognitionTime = parseFloat(recogInput.value) * 1000;
 let practiceMissedMode = false;
 let practiceMissedIndices = [];
-const missedIndices = { oll: new Set(), pll: new Set() };
-const seenSet = { oll: new Set(), pll: new Set() };
-const correctSet = { oll: new Set(), pll: new Set() };
 
-let caseImages = { oll: {}, pll: {} }; // base64 images from ll-images.json
+const missedIndices = { oll: new Set(), pll: new Set(), tbld: new Set() };
+const seenSet = { oll: new Set(), pll: new Set(), tbld: new Set() };
+const correctSet = { oll: new Set(), pll: new Set(), tbld: new Set() };
+
+let caseImages = { oll: {}, pll: {}, tbld: {} };
 
 const isTouchDevice =
     window.matchMedia('(pointer: coarse)').matches ||
     navigator.maxTouchPoints > 0;
 
-// ——— Helpers ———
+// ——— Category / Mode Accessors ———
+function getCat() { return selectCategory.value; }
+function getTbldMode() { return selectTbldMode ? selectTbldMode.value : 'solver'; }
+function isTbld() { return getCat() === 'tbld'; }
+
+// ——— Card List ———
+// For OLL/PLL: uses the arrays from LL-database.js.
+// For TBLD: derives an ordered array from caseImages.tbld.
 function getCards() {
-    return selectCategory.value === 'oll' ? ollCards : pllCards;
+    const cat = getCat();
+    if (cat === 'oll') return ollCards;
+    if (cat === 'pll') return pllCards;
+    // tbld — sorted by numeric key so indices stay stable
+    const tbld = caseImages.tbld || {};
+    return Object.keys(tbld)
+        .sort((a, b) => +a - +b)
+        .map(k => tbld[k]);
 }
 
-function getMissedSet() {
-    return selectCategory.value === 'oll' ? missedIndices.oll : missedIndices.pll;
-}
+// ——— Stat Set Accessors ———
+function getMissedSet() { return missedIndices[getCat()]; }
+function getSeenSet() { return seenSet[getCat()]; }
+function getCorrectSet() { return correctSet[getCat()]; }
 
-function getSeenSet() {
-    return selectCategory.value === 'oll' ? seenSet.oll : seenSet.pll;
-}
-
-function getCorrectSet() {
-    return selectCategory.value === 'oll' ? correctSet.oll : correctSet.pll;
-}
-
-function setPrompt(text) {
-    promptText.textContent = text || '';
-}
+// ——— UI Helpers ———
+function setPrompt(text) { promptText.textContent = text || ''; }
 
 function setPrimaryAction(text, handler, visible = true, disabled = false) {
     if (!visible) {
@@ -64,7 +73,6 @@ function setPrimaryAction(text, handler, visible = true, disabled = false) {
         btnPrimaryAction.disabled = false;
         return;
     }
-
     btnPrimaryAction.textContent = text;
     btnPrimaryAction.style.display = 'inline-block';
     btnPrimaryAction.disabled = disabled;
@@ -78,43 +86,92 @@ function clearGameView() {
     answerButtons.style.display = 'none';
 }
 
-function renderStaticImage(index) {
-    const cat = selectCategory.value;
-    const imgSrc = caseImages[cat][index];
+// ——— Render Helpers ———
 
-    if (!imgSrc) {
-        console.warn(`No image for ${cat} #${index}`);
-        const div = document.createElement('div');
-        div.textContent = 'Image missing';
-        div.style.color = '#f66';
-        div.style.display = 'flex';
-        div.style.alignItems = 'center';
-        div.style.justifyContent = 'center';
-        div.style.width = '100%';
-        div.style.height = '100%';
-        return div;
-    }
-
+/** Returns an <img> element for a data-URL or regular URL. */
+function buildImg(src, alt) {
     const img = document.createElement('img');
-    img.src = imgSrc;
-    img.alt = `${cat.toUpperCase()} case ${index + 1}`;
-    img.style.width = '100%';
-    img.style.height = '100%';
-    img.style.objectFit = 'contain';
-    img.style.display = 'block';
+    img.src = src;
+    img.alt = alt || '';
+    img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;';
     return img;
 }
 
-function renderCubeForAnswer(alg) {
+/** Returns a fallback element when an image is missing. */
+function missingEl(label) {
+    const div = document.createElement('div');
+    div.textContent = label || 'Image missing';
+    div.style.cssText =
+        'color:#f66;display:flex;align-items:center;justify-content:center;' +
+        'width:100%;height:100%;font-size:14px;';
+    return div;
+}
+
+/**
+ * Returns a full-slot element displaying an algorithm NAME.
+ * Used as the QUESTION in solver mode and as the ANSWER in speaker mode.
+ */
+function buildNameCard(name, isAnswer = false) {
+    const div = document.createElement('div');
+    div.className = isAnswer ? 'name-card name-card-answer' : 'name-card';
+    div.textContent = name;
+    return div;
+}
+
+/**
+ * Renders the QUESTION for the current card into #cube-container.
+ * - OLL / PLL : static pre-rendered image (from ll-images.json)
+ * - TBLD solver  : algorithm name as large text
+ * - TBLD speaker : case image
+ */
+function renderStaticImage(index) {
+    const cat = getCat();
+
+    if (cat === 'tbld') {
+        const entry = (caseImages.tbld || {})[String(index)];
+        if (!entry) return missingEl(`TBLD #${index} missing`);
+
+        return getTbldMode() === 'solver'
+            ? buildNameCard(entry.name)          // solver: show the name
+            : buildImg(entry.img, entry.name);   // speaker: show the image
+    }
+
+    // OLL / PLL
+    const imgSrc = caseImages[cat][String(index)];
+    if (!imgSrc) return missingEl(`${cat.toUpperCase()} #${index} missing`);
+    return buildImg(imgSrc, `${cat.toUpperCase()} case ${index + 1}`);
+}
+
+/**
+ * Renders the ANSWER for the current card into #answer.
+ * - OLL / PLL : animated twisty-player (2D-LL view)
+ * - TBLD solver  : case image
+ * - TBLD speaker : algorithm name as large text
+ */
+function buildAnswer(index) {
+    const cat = getCat();
+
+    if (cat === 'tbld') {
+        const entry = (caseImages.tbld || {})[String(index)];
+        if (!entry) return missingEl('Answer missing');
+
+        return getTbldMode() === 'solver'
+            ? buildImg(entry.img, entry.name)         // solver: reveal image
+            : buildNameCard(entry.name, true);        // speaker: reveal name
+    }
+
+    // OLL / PLL — twisty-player
+    const cards = getCards();
+    const card = cards[index];
     const player = document.createElement('twisty-player');
-    player.setAttribute('alg', alg);
+    player.setAttribute('alg', card.alg);
     player.setAttribute('experimental-setup-anchor', 'end');
     player.setAttribute('hint-facelets', 'none');
     player.setAttribute('camera', 'top');
     player.setAttribute('control-panel', 'none');
     player.setAttribute('background', 'none');
     player.setAttribute('visualization', 'experimental-2D-LL');
-    player.setAttribute('experimental-stickering', selectCategory.value.toUpperCase());
+    player.setAttribute('experimental-stickering', cat.toUpperCase());
     player.style.width = 'min(70vw, 240px)';
     player.style.height = 'min(70vw, 240px)';
     player.style.maxWidth = '100%';
@@ -122,15 +179,22 @@ function renderCubeForAnswer(alg) {
     return player;
 }
 
+// ——— Live Stats Bar ———
 function updateLiveStats() {
-    const cat = selectCategory.value;
+    const cat = getCat();
     const time = (recognitionTime / 1000).toFixed(2);
     const seen = seenSet[cat].size;
     const correct = correctSet[cat].size;
     const acc = seen > 0 ? ((correct / seen) * 100).toFixed(1) : '—';
-    statsDisplay.textContent = `Overall: ${acc}% accuracy on ${time}s recog ${cat.toUpperCase()} (${correct}/${seen})`;
+
+    let label = cat.toUpperCase();
+    if (cat === 'tbld') label += ` · ${getTbldMode()}`;
+
+    statsDisplay.textContent =
+        `Overall: ${acc}% accuracy on ${time}s recog ${label} (${correct}/${seen})`;
 }
 
+// ——— Prompt / Button State Machine ———
 function updatePromptForStage() {
     switch (stage) {
         case 'idle':
@@ -142,15 +206,21 @@ function updatePromptForStage() {
             setPrimaryAction('Showing…', null, true, true);
             break;
         case 'waitingAnswer':
-            setPrompt(isTouchDevice ? 'Tap Reveal Answer.' : 'Press Space or tap Reveal Answer.');
+            setPrompt(isTouchDevice
+                ? 'Tap Reveal Answer.'
+                : 'Press Space or tap Reveal Answer.');
             setPrimaryAction('Reveal Answer', showAnswer, true, false);
             break;
         case 'grading':
-            setPrompt(isTouchDevice ? 'Choose Right or Wrong.' : 'Press 1 or 2, or tap Right / Wrong.');
+            setPrompt(isTouchDevice
+                ? 'Choose Right or Wrong.'
+                : 'Press 1 or 2, or tap Right / Wrong.');
             setPrimaryAction('Next Card', null, false);
             break;
         case 'waitingNext':
-            setPrompt(isTouchDevice ? 'Tap Next Card.' : 'Press Space or tap Next Card.');
+            setPrompt(isTouchDevice
+                ? 'Tap Next Card.'
+                : 'Press Space or tap Next Card.');
             setPrimaryAction('Next Card', nextCard, true, false);
             break;
         default:
@@ -159,13 +229,21 @@ function updatePromptForStage() {
     }
 }
 
+// ——— TBLD Sub-mode Selector Visibility ———
+function updateTbldModeVisibility() {
+    if (tbldModeWrap) {
+        tbldModeWrap.style.display = isTbld() ? 'block' : 'none';
+    }
+}
+
+// ——— Practice Missed ———
 function startPracticeMissed(indices) {
     practiceMissedMode = true;
     practiceMissedIndices = Array.isArray(indices) ? [...indices] : [];
     startCard();
 }
 
-// ——— UI States ———
+// ——— UI State Transitions ———
 function showMenu() {
     stage = 'idle';
     practiceMissedMode = false;
@@ -175,6 +253,7 @@ function showMenu() {
     menuScreen.style.display = 'block';
     btnBackMenu.style.display = 'none';
     statsDisplay.style.display = 'block';
+    updateTbldModeVisibility();
     updateLiveStats();
     updatePromptForStage();
 }
@@ -186,31 +265,31 @@ function enterGameUI() {
     statsDisplay.style.display = 'block';
 }
 
-// ——— Core Flow ———
+// ——— Core Training Flow ———
 async function startCard() {
     enterGameUI();
     const cards = getCards();
     const missedSet = getMissedSet();
 
-    if (practiceMissedMode) {
-        if (!practiceMissedIndices.length) {
-            if (missedSet.size) {
-                practiceMissedIndices = Array.from(missedSet);
-            }
-        }
+    if (!cards.length) {
+        alert('No cards available for this category. Make sure ll-images.json has been populated.');
+        showMenu();
+        return;
+    }
 
+    if (practiceMissedMode) {
+        if (!practiceMissedIndices.length && missedSet.size) {
+            practiceMissedIndices = Array.from(missedSet);
+        }
         if (!practiceMissedIndices.length) {
             alert('No missed cases in this category!');
             showMenu();
             return;
         }
-
         currentCardIndex = practiceMissedIndices.shift();
     } else {
         currentCardIndex = Math.floor(Math.random() * cards.length);
     }
-
-    const card = cards[currentCardIndex];
 
     clearGameView();
     container.appendChild(renderStaticImage(currentCardIndex));
@@ -229,11 +308,8 @@ async function startCard() {
 function showAnswer() {
     if (stage !== 'waitingAnswer') return;
 
-    const cards = getCards();
-    const card = cards[currentCardIndex];
-
     answerElement.innerHTML = '';
-    answerElement.appendChild(renderCubeForAnswer(card.alg));
+    answerElement.appendChild(buildAnswer(currentCardIndex));
     answerElement.style.display = 'block';
     answerButtons.style.display = 'flex';
 
@@ -244,7 +320,7 @@ function showAnswer() {
 function grade(correct) {
     if (stage !== 'grading') return;
 
-    const cat = selectCategory.value;
+    const cat = getCat();
     seenSet[cat].add(currentCardIndex);
 
     if (correct) {
@@ -272,11 +348,10 @@ function nextCard() {
         showMenu();
         return;
     }
-
     startCard();
 }
 
-// ——— Stats ———
+// ——— Stats Screen ———
 function showStats() {
     menuScreen.style.display = 'none';
     btnBackMenu.style.display = 'inline-block';
@@ -285,16 +360,15 @@ function showStats() {
     statsDisplay.style.display = 'none';
     setPrompt('');
 
-    const cat = selectCategory.value;
-    const cards = getCards();
+    const cat = getCat();
     const missedSet = getMissedSet();
     const seen = seenSet[cat].size;
     const correct = correctSet[cat].size;
     const acc = seen > 0 ? ((correct / seen) * 100).toFixed(1) : '—';
 
+    // Summary row
     const summary = document.createElement('div');
-    summary.style.marginBottom = '10px';
-    summary.style.width = '100%';
+    summary.style.cssText = 'margin-bottom:10px;width:100%;';
     summary.textContent = `Accuracy: ${acc}% (${correct}/${seen})`;
     statsCards.appendChild(summary);
 
@@ -307,26 +381,51 @@ function showStats() {
     }
 
     missedSet.forEach(i => {
-        const card = cards[i];
         const div = document.createElement('div');
-        div.title = card.alg;
-
-        const img = document.createElement('img');
-        img.src = caseImages[cat][i] || '';
-        img.alt = card.alg;
-        img.style.width = '100%';
-        img.style.height = '100%';
-        img.style.objectFit = 'contain';
-
-        div.appendChild(img);
         div.onclick = () => startPracticeMissed([i]);
+
+        if (cat === 'tbld') {
+            const entry = (caseImages.tbld || {})[String(i)];
+            if (entry) {
+                if (getTbldMode() === 'solver') {
+                    // Solver missed: show name prominently (that's what they were shown)
+                    div.classList.add('solver-card');
+                    div.textContent = entry.name;
+                    div.title = entry.alg;
+                } else {
+                    // Speaker missed: show image + name label
+                    div.classList.add('has-label');
+                    div.title = entry.name;
+                    const img = document.createElement('img');
+                    img.src = entry.img || '';
+                    img.alt = entry.name;
+                    img.style.cssText = 'width:100%;height:72%;object-fit:contain;';
+                    const label = document.createElement('span');
+                    label.className = 'case-name-label';
+                    label.textContent = entry.name;
+                    div.appendChild(img);
+                    div.appendChild(label);
+                }
+            }
+        } else {
+            // OLL / PLL
+            const cards = getCards();
+            const card = cards[i];
+            div.title = card ? card.alg : '';
+            const img = document.createElement('img');
+            img.src = caseImages[cat][String(i)] || '';
+            img.alt = card ? card.alg : '';
+            img.style.cssText = 'width:100%;height:100%;object-fit:contain;';
+            div.appendChild(img);
+        }
+
         statsCards.appendChild(div);
     });
 }
 
 function clearStats() {
     if (confirm('Clear all missed and accuracy stats for this category?')) {
-        const cat = selectCategory.value;
+        const cat = getCat();
         missedIndices[cat].clear();
         seenSet[cat].clear();
         correctSet[cat].clear();
@@ -340,17 +439,18 @@ function clearStats() {
 function saveStats() {
     localStorage.setItem('seenSet', JSON.stringify({
         oll: Array.from(seenSet.oll),
-        pll: Array.from(seenSet.pll)
+        pll: Array.from(seenSet.pll),
+        tbld: Array.from(seenSet.tbld),
     }));
-
     localStorage.setItem('correctSet', JSON.stringify({
         oll: Array.from(correctSet.oll),
-        pll: Array.from(correctSet.pll)
+        pll: Array.from(correctSet.pll),
+        tbld: Array.from(correctSet.tbld),
     }));
-
     localStorage.setItem('missedIndices', JSON.stringify({
         oll: Array.from(missedIndices.oll),
-        pll: Array.from(missedIndices.pll)
+        pll: Array.from(missedIndices.pll),
+        tbld: Array.from(missedIndices.tbld),
     }));
 }
 
@@ -363,23 +463,24 @@ function loadStats() {
         if (seenData) {
             seenSet.oll = new Set(seenData.oll || []);
             seenSet.pll = new Set(seenData.pll || []);
+            seenSet.tbld = new Set(seenData.tbld || []);
         }
-
         if (correctData) {
             correctSet.oll = new Set(correctData.oll || []);
             correctSet.pll = new Set(correctData.pll || []);
+            correctSet.tbld = new Set(correctData.tbld || []);
         }
-
         if (missedData) {
             missedIndices.oll = new Set(missedData.oll || []);
             missedIndices.pll = new Set(missedData.pll || []);
+            missedIndices.tbld = new Set(missedData.tbld || []);
         }
     } catch (e) {
         console.warn('Failed to load stats from localStorage.');
     }
 }
 
-// ——— Load Images ———
+// ——— Image Loader ———
 async function loadCaseImages() {
     try {
         let res = await fetch('ll-images.json');
@@ -391,14 +492,22 @@ async function loadCaseImages() {
 
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-        caseImages = await res.json();
+        const data = await res.json();
+        caseImages.oll = data.oll || {};
+        caseImages.pll = data.pll || {};
+        caseImages.tbld = data.tbld || {};
+
         console.log(
-            `✅ Loaded ${Object.keys(caseImages.oll).length} OLL + ${Object.keys(caseImages.pll).length} PLL static images`
+            `✅ Loaded ${Object.keys(caseImages.oll).length} OLL + ` +
+            `${Object.keys(caseImages.pll).length} PLL + ` +
+            `${Object.keys(caseImages.tbld).length} TBLD images`
         );
     } catch (e) {
         console.error('Failed to load ll-images.json', e);
         alert(
-            'Could not load ll-images.json.\n\nMake sure the file is in the same folder as index.html and you are viewing the page through a web server or GitHub Pages (not file://).'
+            'Could not load ll-images.json.\n\n' +
+            'Make sure the file is in the same folder as index.html and you are ' +
+            'viewing the page through a web server or GitHub Pages (not file://).'
         );
     }
 }
@@ -412,10 +521,7 @@ btnStart.onclick = () => {
 
 btnPracticeMissed.onclick = () => {
     const missed = Array.from(getMissedSet());
-    if (!missed.length) {
-        alert('No missed cases!');
-        return;
-    }
+    if (!missed.length) { alert('No missed cases!'); return; }
     startPracticeMissed(missed);
 };
 
@@ -431,19 +537,14 @@ btnPrimaryAction.onclick = () => {
 
 recogInput.oninput = () => {
     let v = parseFloat(recogInput.value);
-    if (Number.isNaN(v) || v < 0.1) {
-        v = 1;
-        recogInput.value = v;
-    }
-    if (v > 10) {
-        v = 10;
-        recogInput.value = v;
-    }
+    if (Number.isNaN(v) || v < 0.1) { v = 1; recogInput.value = v; }
+    if (v > 10) { v = 10; recogInput.value = v; }
     recognitionTime = v * 1000;
     updateLiveStats();
 };
 
 selectCategory.onchange = () => {
+    updateTbldModeVisibility();
     updateLiveStats();
     if (statsScreen.style.display === 'block') {
         showStats();
@@ -452,15 +553,20 @@ selectCategory.onchange = () => {
     }
 };
 
+if (selectTbldMode) {
+    selectTbldMode.onchange = () => {
+        updateLiveStats();
+        // If stats screen is open, refresh it to match the new mode's missed cases
+        if (statsScreen.style.display === 'block') showStats();
+    };
+}
+
 btnCorrect.onclick = () => grade(true);
 btnWrong.onclick = () => grade(false);
 
 visualSlot.addEventListener('click', () => {
-    if (stage === 'waitingAnswer') {
-        showAnswer();
-    } else if (stage === 'waitingNext') {
-        nextCard();
-    }
+    if (stage === 'waitingAnswer') showAnswer();
+    else if (stage === 'waitingNext') nextCard();
 });
 
 document.addEventListener('keydown', e => {
@@ -472,31 +578,17 @@ document.addEventListener('keydown', e => {
 
     switch (stage) {
         case 'idle':
-            if (e.code === 'Space') {
-                e.preventDefault();
-                startCard();
-            }
+            if (e.code === 'Space') { e.preventDefault(); startCard(); }
             break;
         case 'waitingAnswer':
-            if (e.code === 'Space') {
-                e.preventDefault();
-                showAnswer();
-            }
+            if (e.code === 'Space') { e.preventDefault(); showAnswer(); }
             break;
         case 'grading':
-            if (e.key === '1') {
-                e.preventDefault();
-                grade(true);
-            } else if (e.key === '2') {
-                e.preventDefault();
-                grade(false);
-            }
+            if (e.key === '1') { e.preventDefault(); grade(true); }
+            else if (e.key === '2') { e.preventDefault(); grade(false); }
             break;
         case 'waitingNext':
-            if (e.code === 'Space') {
-                e.preventDefault();
-                nextCard();
-            }
+            if (e.code === 'Space') { e.preventDefault(); nextCard(); }
             break;
     }
 });
@@ -505,6 +597,7 @@ document.addEventListener('keydown', e => {
 async function init() {
     loadStats();
     await loadCaseImages();
+    updateTbldModeVisibility();
     updateLiveStats();
     showMenu();
 }
