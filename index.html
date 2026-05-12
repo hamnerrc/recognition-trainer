@@ -196,7 +196,6 @@
             display: block;
         }
 
-        /* When a name label is present, shrink the image */
         #statsCards>div.has-label img {
             height: 72%;
         }
@@ -212,7 +211,6 @@
             white-space: nowrap;
         }
 
-        /* Solver-mode missed card shows just the name */
         #statsCards>div.solver-card {
             font-size: clamp(0.9rem, 4vw, 1.2rem);
             font-weight: bold;
@@ -248,14 +246,12 @@
             min-height: 22px;
         }
 
-        /* TBLD mode selector — hidden unless tbld is chosen */
         #tbld-mode-wrap {
             display: none;
             width: 100%;
             max-width: 320px;
         }
 
-        /* Name card shown in visual-slot for solver mode */
         .name-card {
             display: flex;
             align-items: center;
@@ -270,7 +266,6 @@
             padding: 12px;
         }
 
-        /* Name card when shown as the answer */
         .name-card-answer {
             font-size: clamp(1.8rem, 11vw, 3.8rem);
         }
@@ -327,6 +322,13 @@
 
             <!-- Shown only when Team Blind is selected -->
             <div id="tbld-mode-wrap">
+                <label>
+                    <span>Sub-set:</span>
+                    <select id="select-tbld-subset">
+                        <option value="f2l">F2L</option>
+                        <option value="oll_named">OLL</option>
+                    </select>
+                </label>
                 <label>
                     <span>Mode:</span>
                     <select id="select-tbld-mode">
