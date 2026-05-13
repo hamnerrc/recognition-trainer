@@ -109,10 +109,10 @@ function getCards() {
     if (cat === 'oll') return ollCards;
     if (cat === 'pll') return pllCards;
 
+    // For TBLD (F2L or OLL_Named)
     const store = caseImages[getTbldSubset()] || {};
-    return Object.keys(store)
-        .sort((a, b) => +a - +b)
-        .map(k => store[k]);
+    // Convert the object into an array of its values
+    return Object.values(store);
 }
 
 // ——— UI Helpers ———
@@ -171,42 +171,35 @@ function buildNameCard(name, isAnswer = false) {
 }
 
 function renderStaticImage(index) {
-    const cat = getCat();
+    const cards = getCards();
+    const card = cards[index];
+    if (!card) return missingEl("Case not found");
 
-    if (cat === 'tbld') {
-        const store = caseImages[getTbldSubset()] || {};
-        const entry = store[String(index)];
-        if (!entry) return missingEl(`Case #${index} missing — run the image generator`);
-
+    if (getCat() === 'tbld') {
         return getTbldMode() === 'solver'
-            ? buildNameCard(entry.name)
-            : buildImg(entry.img, entry.name);
+            ? buildNameCard(card.name)
+            : buildImg(card.img, card.name);
     }
 
-    const imgSrc = caseImages[cat][String(index)];
-    if (!imgSrc) return missingEl(`${cat.toUpperCase()} #${index} missing`);
-    return buildImg(imgSrc, `${cat.toUpperCase()} case ${index + 1}`);
+    const imgSrc = caseImages[getCat()][String(index)];
+    if (!imgSrc) return missingEl(`Case #${index} missing`);
+    return buildImg(imgSrc, `Case ${index + 1}`);
 }
 
 function buildAnswer(index) {
+    const cards = getCards();
+    const card = cards[index];
     const cat = getCat();
 
     if (cat === 'tbld') {
-        const store = caseImages[getTbldSubset()] || {};
-        const entry = store[String(index)];
-        if (!entry) return missingEl('Answer missing');
-
         return getTbldMode() === 'solver'
-            ? buildImg(entry.img, entry.name)
-            : buildNameCard(entry.name, true);
+            ? buildImg(card.img, card.name)
+            : buildNameCard(card.name, true);
     }
 
-    const cards = getCards();
-    const card = cards[index];
     const player = document.createElement('twisty-player');
     player.setAttribute('alg', card.alg);
     player.setAttribute('experimental-setup-anchor', 'end');
-    player.setAttribute('hint-facelets', 'none');
     player.setAttribute('camera', 'top');
     player.setAttribute('control-panel', 'none');
     player.setAttribute('background', 'none');
@@ -214,8 +207,6 @@ function buildAnswer(index) {
     player.setAttribute('experimental-stickering', cat.toUpperCase());
     player.style.width = 'min(70vw, 240px)';
     player.style.height = 'min(70vw, 240px)';
-    player.style.maxWidth = '100%';
-    player.style.maxHeight = '100%';
     return player;
 }
 
@@ -315,27 +306,20 @@ function showSelectionScreen() {
 
         let content;
         if (isTbld()) {
-            const store = caseImages[getTbldSubset()] || {};
-            const entry = store[String(i)];
-            if (entry) {
-                if (getTbldMode() === 'solver') {
-                    content = document.createElement('div');
-                    content.className = 'case-name';
-                    content.textContent = entry.name;
-                } else {
-                    content = buildImg(entry.img, entry.name);
-                }
+            // TBLD cards already contain their img and name
+            if (getTbldMode() === 'solver') {
+                content = document.createElement('div');
+                content.className = 'case-name';
+                content.textContent = card.name;
             } else {
-                content = missingEl('?');
+                content = card.img ? buildImg(card.img, card.name) : missingEl(card.name);
             }
         } else {
             const imgSrc = caseImages[getCat()][String(i)];
-            if (imgSrc) content = buildImg(imgSrc, `Case ${i + 1}`);
-            else content = missingEl('?');
+            content = imgSrc ? buildImg(imgSrc, `Case ${i + 1}`) : missingEl('?');
         }
 
         wrapper.appendChild(content);
-
         wrapper.onclick = () => {
             const idx = selectedIndices[key].indexOf(i);
             if (idx > -1) {
@@ -346,7 +330,6 @@ function showSelectionScreen() {
                 wrapper.classList.add('selected');
             }
         };
-
         selectionGrid.appendChild(wrapper);
     });
 }
