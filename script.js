@@ -109,9 +109,9 @@ function getCards() {
     if (cat === 'oll') return ollCards;
     if (cat === 'pll') return pllCards;
 
-    // For TBLD (F2L or OLL_Named)
-    const store = caseImages[getTbldSubset()] || {};
-    // Convert the object into an array of its values
+    // For TeamBlind
+    const key = getTbldSubset() === 'f2l' ? 'tbld' : 'oll_named';
+    const store = caseImages[key] || {};
     return Object.values(store);
 }
 
@@ -463,7 +463,7 @@ async function loadCaseImages() {
         const data = await res.json();
         caseImages.oll = data.oll || {};
         caseImages.pll = data.pll || {};
-        caseImages.tbld = data.tbld || {};
+        caseImages.tbld = data.tbld || {};        // F2L data
         caseImages.oll_named = data.oll_named || {};
 
         console.log(
