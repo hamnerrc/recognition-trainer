@@ -27,6 +27,7 @@
             align-items: flex-start;
             user-select: none;
             touch-action: manipulation;
+            transition: background-color 0.15s ease;
         }
 
         .container {
@@ -51,9 +52,66 @@
         }
 
         #menu-screen,
-        #statsScreen,
         #answerButtons {
             width: 100%;
+        }
+
+        #selection-screen {
+            display: none;
+            width: 100%;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #selection-buttons {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            max-width: 320px;
+            margin-bottom: 12px;
+        }
+
+        #selection-buttons button {
+            margin: 0;
+        }
+
+        #selection-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            max-height: 45vh;
+            overflow-y: auto;
+            width: 100%;
+            margin-bottom: 15px;
+            padding: 4px;
+        }
+
+        .case-toggle {
+            width: clamp(60px, 15vw, 80px);
+            height: clamp(60px, 15vw, 80px);
+            border: 3px solid transparent;
+            border-radius: 8px;
+            background-color: #333;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            box-sizing: border-box;
+            padding: 4px;
+            transition: border-color 0.1s ease, background-color 0.1s ease;
+        }
+
+        .case-toggle.selected {
+            border-color: #fff;
+            background-color: #444;
+        }
+
+        .case-toggle .case-name {
+            font-size: clamp(0.7rem, 2.5vw, 1rem);
+            color: #eee;
+            text-align: center;
         }
 
         #visual-slot {
@@ -155,84 +213,6 @@
             width: min(100%, 320px);
         }
 
-        #statsScreen {
-            display: none;
-            margin-top: 10px;
-        }
-
-        #statsCards {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 12px;
-            width: 100%;
-        }
-
-        #statsCards>div {
-            background-color: #333;
-            width: clamp(92px, 40vw, 110px);
-            height: clamp(92px, 40vw, 110px);
-            border: 2px solid #555;
-            border-radius: 10px;
-            padding: 6px;
-            cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-            overflow: hidden;
-            gap: 4px;
-        }
-
-        #statsCards>div:hover {
-            border-color: #777;
-        }
-
-        #statsCards img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            display: block;
-        }
-
-        #statsCards>div.has-label img {
-            height: 72%;
-        }
-
-        #statsCards .case-name-label {
-            font-size: 0.68rem;
-            color: #ccc;
-            text-align: center;
-            line-height: 1.1;
-            width: 100%;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        #statsCards>div.solver-card {
-            font-size: clamp(0.9rem, 4vw, 1.2rem);
-            font-weight: bold;
-            color: #eee;
-            letter-spacing: 0.04em;
-        }
-
-        .remove-btn {
-            position: absolute;
-            top: 4px;
-            right: 4px;
-            background: #f44;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 22px;
-            height: 22px;
-            font-size: 14px;
-            line-height: 20px;
-            cursor: pointer;
-        }
-
         #btn-back-menu {
             display: none;
             margin-top: 15px;
@@ -243,7 +223,8 @@
             margin-top: 12px;
             font-size: 15px;
             color: #aaa;
-            min-height: 22px;
+            min-height: 44px;
+            line-height: 1.4;
         }
 
         #tbld-mode-wrap {
@@ -301,9 +282,7 @@
     <div class="container" tabindex="0" id="main-container">
         <div id="menu-screen">
             <h1>Cube Trainer</h1>
-            <button id="btn-start">Start Training</button>
-            <button id="btn-practice-missed">Practice Missed Cases</button>
-            <button id="btn-show-stats">Show Stats</button>
+            <button id="btn-start">Select Cases & Start</button>
 
             <label>
                 <span>Recognition time:</span>
@@ -320,7 +299,6 @@
                 </select>
             </label>
 
-            <!-- Shown only when Team Blind is selected -->
             <div id="tbld-mode-wrap">
                 <label>
                     <span>Sub-set:</span>
@@ -339,6 +317,16 @@
             </div>
         </div>
 
+        <div id="selection-screen">
+            <h3>Select Cases</h3>
+            <div id="selection-buttons">
+                <button id="btn-select-all">Select All</button>
+                <button id="btn-deselect-all">Deselect All</button>
+            </div>
+            <div id="selection-grid"></div>
+            <button id="btn-start-training">Begin Training</button>
+        </div>
+
         <div id="visual-slot">
             <div id="cube-container"></div>
             <div id="answer"></div>
@@ -352,13 +340,6 @@
         <div id="answerButtons">
             <button id="btn-correct">Right (1)</button>
             <button id="btn-wrong">Wrong (2)</button>
-        </div>
-
-        <div id="statsScreen">
-            <h3>Missed Cases</h3>
-            <div id="statsCards"></div>
-            <button id="btn-clear-stats">Clear All Stats</button>
-            <button id="btn-close-stats">Close Stats</button>
         </div>
 
         <button id="btn-back-menu">Back to Menu (Esc)</button>

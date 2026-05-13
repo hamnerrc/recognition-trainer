@@ -6,14 +6,16 @@ const btnCorrect = document.getElementById('btn-correct');
 const btnWrong = document.getElementById('btn-wrong');
 const btnBackMenu = document.getElementById('btn-back-menu');
 const btnStart = document.getElementById('btn-start');
-const btnPracticeMissed = document.getElementById('btn-practice-missed');
-const btnShowStats = document.getElementById('btn-show-stats');
-const btnClearStats = document.getElementById('btn-clear-stats');
-const btnCloseStats = document.getElementById('btn-close-stats');
 const btnPrimaryAction = document.getElementById('btn-primary-action');
 const menuScreen = document.getElementById('menu-screen');
-const statsScreen = document.getElementById('statsScreen');
-const statsCards = document.getElementById('statsCards');
+
+// Selection Screen Refs
+const selectionScreen = document.getElementById('selection-screen');
+const selectionGrid = document.getElementById('selection-grid');
+const btnSelectAll = document.getElementById('btn-select-all');
+const btnDeselectAll = document.getElementById('btn-deselect-all');
+const btnStartTraining = document.getElementById('btn-start-training');
+
 const recogInput = document.getElementById('input-recog-time');
 const selectCategory = document.getElementById('select-category');
 const selectTbldSubset = document.getElementById('select-tbld-subset');
@@ -27,17 +29,17 @@ const visualSlot = document.getElementById('visual-slot');
 let currentCardIndex = 0;
 let stage = 'idle';
 let recognitionTime = parseFloat(recogInput.value) * 1000;
-let practiceMissedMode = false;
-let practiceMissedIndices = [];
+let cardShownTime = 0;
+let currentReactionTime = 0;
 
-// ——— Stat keys ———
-// OLL / PLL use their own keys.
-// Team Blind has two sub-sets: f2l and oll_named — each tracked independently.
+// ——— Stat keys & Data ———
 const STAT_KEYS = ['oll', 'pll', 'f2l', 'oll_named'];
 
-const missedIndices = Object.fromEntries(STAT_KEYS.map(k => [k, new Set()]));
-const seenSet = Object.fromEntries(STAT_KEYS.map(k => [k, new Set()]));
-const correctSet = Object.fromEntries(STAT_KEYS.map(k => [k, new Set()]));
+let gameStats = Object.fromEntries(STAT_KEYS.map(k => [
+    k, { correct_count: 0, incorrect_count: 0, streak: 0, bestStreak: 0, bestAcc: 0, bestTime: Infinity }
+]));
+
+let selectedIndices = Object.fromEntries(STAT_KEYS.map(k => [k, null]));
 
 // ——— Image data ———
 let caseImages = { oll: {}, pll: {}, tbld: {}, oll_named: {} };
@@ -56,20 +58,23 @@ function fisherYatesShuffle(arr) {
 }
 
 function refillDeck(key) {
-    const total = getCards().length;
-    if (total === 0) return;
+    const pool = selectedIndices[key] || [];
+    if (pool.length === 0) return;
 
-    const recent = recentlyShown[key].slice(-NO_REPEAT_WINDOW);
+    const recent = recentlyShown[key].filter(i => pool.includes(i)).slice(-NO_REPEAT_WINDOW);
     const recentSet = new Set(recent);
 
-    const pool = [];
-    for (let i = 0; i < total; i++) {
-        if (!recentSet.has(i)) pool.push(i);
-    }
-    fisherYatesShuffle(pool);
+    const available = pool.filter(i => !recentSet.has(i));
 
-    const tail = fisherYatesShuffle([...recent]);
-    deckQueue[key] = [...pool, ...tail];
+    if (available.length === 0) {
+        const arr = [...pool];
+        fisherYatesShuffle(arr);
+        deckQueue[key] = arr;
+    } else {
+        fisherYatesShuffle(available);
+        const tail = fisherYatesShuffle([...recent]);
+        deckQueue[key] = [...available, ...tail];
+    }
 }
 
 function drawNextIndex(key) {
@@ -93,10 +98,6 @@ function getTbldSubset() { return selectTbldSubset ? selectTbldSubset.value : 'f
 function getTbldMode() { return selectTbldMode ? selectTbldMode.value : 'solver'; }
 function isTbld() { return getCat() === 'tbld'; }
 
-/**
- * Returns the stat key for the current selection.
- * OLL → 'oll', PLL → 'pll', TBLD+f2l → 'f2l', TBLD+oll_named → 'oll_named'
- */
 function getActiveKey() {
     if (!isTbld()) return getCat();
     return getTbldSubset(); // 'f2l' or 'oll_named'
@@ -108,17 +109,11 @@ function getCards() {
     if (cat === 'oll') return ollCards;
     if (cat === 'pll') return pllCards;
 
-    // Team Blind — look up whichever subset is active
     const store = caseImages[getTbldSubset()] || {};
     return Object.keys(store)
         .sort((a, b) => +a - +b)
         .map(k => store[k]);
 }
-
-// ——— Stat Set Accessors ———
-function getMissedSet() { return missedIndices[getActiveKey()]; }
-function getSeenSet() { return seenSet[getActiveKey()]; }
-function getCorrectSet() { return correctSet[getActiveKey()]; }
 
 // ——— UI Helpers ———
 function setPrompt(text) { promptText.textContent = text || ''; }
@@ -143,8 +138,14 @@ function clearGameView() {
     answerButtons.style.display = 'none';
 }
 
-// ——— Render Helpers ———
+function flashGreen() {
+    document.body.style.backgroundColor = '#1a3a1a';
+    setTimeout(() => {
+        document.body.style.backgroundColor = '#121212';
+    }, 150);
+}
 
+// ——— Render Helpers ———
 function buildImg(src, alt) {
     const img = document.createElement('img');
     img.src = src;
@@ -169,12 +170,6 @@ function buildNameCard(name, isAnswer = false) {
     return div;
 }
 
-/**
- * Renders the QUESTION for the current card.
- * OLL / PLL        → static pre-rendered image from ll-images.json
- * TBLD solver mode → algorithm name as large text
- * TBLD speaker mode → case image
- */
 function renderStaticImage(index) {
     const cat = getCat();
 
@@ -188,18 +183,11 @@ function renderStaticImage(index) {
             : buildImg(entry.img, entry.name);
     }
 
-    // OLL / PLL
     const imgSrc = caseImages[cat][String(index)];
     if (!imgSrc) return missingEl(`${cat.toUpperCase()} #${index} missing`);
     return buildImg(imgSrc, `${cat.toUpperCase()} case ${index + 1}`);
 }
 
-/**
- * Renders the ANSWER for the current card.
- * OLL / PLL        → animated twisty-player
- * TBLD solver mode → case image
- * TBLD speaker mode → algorithm name
- */
 function buildAnswer(index) {
     const cat = getCat();
 
@@ -213,7 +201,6 @@ function buildAnswer(index) {
             : buildNameCard(entry.name, true);
     }
 
-    // OLL / PLL — animated twisty-player
     const cards = getCards();
     const card = cards[index];
     const player = document.createElement('twisty-player');
@@ -235,10 +222,11 @@ function buildAnswer(index) {
 // ——— Live Stats Bar ———
 function updateLiveStats() {
     const key = getActiveKey();
-    const time = (recognitionTime / 1000).toFixed(2);
-    const seen = seenSet[key].size;
-    const correct = correctSet[key].size;
-    const acc = seen > 0 ? ((correct / seen) * 100).toFixed(1) : '—';
+    const st = gameStats[key];
+    const totalAttempts = st.correct_count + st.incorrect_count;
+    const acc = totalAttempts > 0 ? ((st.correct_count / totalAttempts) * 100).toFixed(1) : '—';
+    const bestAcc = st.bestAcc > 0 ? st.bestAcc.toFixed(1) + '%' : '—';
+    const bestTime = st.bestTime !== Infinity ? (st.bestTime / 1000).toFixed(2) + 's' : '—';
 
     let label = getCat().toUpperCase();
     if (isTbld()) {
@@ -246,8 +234,9 @@ function updateLiveStats() {
         label = `TB · ${subLabel} · ${getTbldMode()}`;
     }
 
-    statsDisplay.textContent =
-        `Overall: ${acc}% accuracy on ${time}s recog ${label} (${correct}/${seen})`;
+    statsDisplay.innerHTML =
+        `${label} — Acc: ${acc}% (${st.correct_count}/${totalAttempts}) | Best Acc: ${bestAcc}<br>` +
+        `Streak: ${st.streak} (Best: ${st.bestStreak}) | Best Time: ${bestTime}`;
 }
 
 // ——— Prompt / Button State Machine ———
@@ -285,40 +274,96 @@ function updateTbldModeVisibility() {
     if (tbldModeWrap) tbldModeWrap.style.display = isTbld() ? 'block' : 'none';
 }
 
-// ——— Practice Missed ———
-function startPracticeMissed(indices) {
-    practiceMissedMode = true;
-    practiceMissedIndices = Array.isArray(indices) ? [...indices] : [];
-    startCard();
-}
-
 // ——— UI State Transitions ———
 function showMenu() {
     stage = 'idle';
-    practiceMissedMode = false;
-    practiceMissedIndices = [];
     clearGameView();
-    statsScreen.style.display = 'none';
+    selectionScreen.style.display = 'none';
     menuScreen.style.display = 'block';
     btnBackMenu.style.display = 'none';
+    visualSlot.style.display = 'flex';
     statsDisplay.style.display = 'block';
+    promptText.style.display = 'block';
     updateTbldModeVisibility();
     updateLiveStats();
     updatePromptForStage();
 }
 
+function showSelectionScreen() {
+    stage = 'idle';
+    clearGameView();
+    menuScreen.style.display = 'none';
+    selectionScreen.style.display = 'flex';
+    btnBackMenu.style.display = 'inline-block';
+    visualSlot.style.display = 'none';
+    statsDisplay.style.display = 'none';
+    promptText.style.display = 'none';
+
+    const key = getActiveKey();
+    const cards = getCards();
+
+    // Init selection if missing
+    if (!selectedIndices[key] || selectedIndices[key].length !== cards.length) {
+        selectedIndices[key] = cards.map((_, i) => i);
+    }
+
+    selectionGrid.innerHTML = '';
+    cards.forEach((card, i) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'case-toggle';
+        if (selectedIndices[key].includes(i)) wrapper.classList.add('selected');
+
+        let content;
+        if (isTbld()) {
+            const store = caseImages[getTbldSubset()] || {};
+            const entry = store[String(i)];
+            if (entry) {
+                if (getTbldMode() === 'solver') {
+                    content = document.createElement('div');
+                    content.className = 'case-name';
+                    content.textContent = entry.name;
+                } else {
+                    content = buildImg(entry.img, entry.name);
+                }
+            } else {
+                content = missingEl('?');
+            }
+        } else {
+            const imgSrc = caseImages[getCat()][String(i)];
+            if (imgSrc) content = buildImg(imgSrc, `Case ${i + 1}`);
+            else content = missingEl('?');
+        }
+
+        wrapper.appendChild(content);
+
+        wrapper.onclick = () => {
+            const idx = selectedIndices[key].indexOf(i);
+            if (idx > -1) {
+                selectedIndices[key].splice(idx, 1);
+                wrapper.classList.remove('selected');
+            } else {
+                selectedIndices[key].push(i);
+                wrapper.classList.add('selected');
+            }
+        };
+
+        selectionGrid.appendChild(wrapper);
+    });
+}
+
 function enterGameUI() {
     menuScreen.style.display = 'none';
-    statsScreen.style.display = 'none';
-    btnBackMenu.style.display = 'inline-block';
+    selectionScreen.style.display = 'none';
+    visualSlot.style.display = 'flex';
     statsDisplay.style.display = 'block';
+    promptText.style.display = 'block';
+    btnBackMenu.style.display = 'inline-block';
 }
 
 // ——— Core Training Flow ———
 async function startCard() {
     enterGameUI();
     const cards = getCards();
-    const missedSet = getMissedSet();
     const key = getActiveKey();
 
     if (!cards.length) {
@@ -327,25 +372,14 @@ async function startCard() {
         return;
     }
 
-    if (practiceMissedMode) {
-        if (!practiceMissedIndices.length && missedSet.size) {
-            practiceMissedIndices = Array.from(missedSet);
-        }
-        if (!practiceMissedIndices.length) {
-            alert('No missed cases for this set!');
-            showMenu();
-            return;
-        }
-        currentCardIndex = practiceMissedIndices.shift();
-    } else {
-        currentCardIndex = drawNextIndex(key);
-    }
+    currentCardIndex = drawNextIndex(key);
 
     clearGameView();
     container.appendChild(renderStaticImage(currentCardIndex));
 
     stage = 'showing';
     updatePromptForStage();
+    cardShownTime = Date.now();
 
     setTimeout(() => {
         if (stage !== 'showing') return;
@@ -357,6 +391,8 @@ async function startCard() {
 
 function showAnswer() {
     if (stage !== 'waitingAnswer') return;
+
+    currentReactionTime = Date.now() - cardShownTime;
 
     answerElement.innerHTML = '';
     answerElement.appendChild(buildAnswer(currentCardIndex));
@@ -371,14 +407,22 @@ function grade(correct) {
     if (stage !== 'grading') return;
 
     const key = getActiveKey();
-    seenSet[key].add(currentCardIndex);
+    const st = gameStats[key];
 
     if (correct) {
-        correctSet[key].add(currentCardIndex);
-        getMissedSet().delete(currentCardIndex);
+        st.correct_count++;
+        st.streak++;
+        if (st.streak > st.bestStreak) st.bestStreak = st.streak;
+        if (currentReactionTime < st.bestTime) st.bestTime = currentReactionTime;
+        flashGreen();
     } else {
-        getMissedSet().add(currentCardIndex);
+        st.incorrect_count++;
+        st.streak = 0;
     }
+
+    const totalAttempts = st.correct_count + st.incorrect_count;
+    const currentAcc = (st.correct_count / totalAttempts) * 100;
+    if (currentAcc > st.bestAcc) st.bestAcc = currentAcc;
 
     updateLiveStats();
     saveStats();
@@ -393,114 +437,29 @@ function grade(correct) {
 }
 
 function nextCard() {
-    if (practiceMissedMode && practiceMissedIndices.length === 0) {
-        alert('Finished all missed cases!');
-        showMenu();
-        return;
-    }
     startCard();
-}
-
-// ——— Stats Screen ———
-function showStats() {
-    menuScreen.style.display = 'none';
-    btnBackMenu.style.display = 'inline-block';
-    statsScreen.style.display = 'block';
-    statsCards.innerHTML = '';
-    statsDisplay.style.display = 'none';
-    setPrompt('');
-
-    const key = getActiveKey();
-    const missedSet = getMissedSet();
-    const seen = seenSet[key].size;
-    const correct = correctSet[key].size;
-    const acc = seen > 0 ? ((correct / seen) * 100).toFixed(1) : '—';
-
-    const summary = document.createElement('div');
-    summary.style.cssText = 'margin-bottom:10px;width:100%;';
-    summary.textContent = `Accuracy: ${acc}% (${correct}/${seen})`;
-    statsCards.appendChild(summary);
-
-    if (!missedSet.size) {
-        const empty = document.createElement('div');
-        empty.textContent = 'No missed cases yet.';
-        empty.style.width = '100%';
-        statsCards.appendChild(empty);
-        return;
-    }
-
-    missedSet.forEach(i => {
-        const div = document.createElement('div');
-        div.onclick = () => startPracticeMissed([i]);
-
-        if (isTbld()) {
-            const store = caseImages[getTbldSubset()] || {};
-            const entry = store[String(i)];
-            if (entry) {
-                if (getTbldMode() === 'solver') {
-                    div.classList.add('solver-card');
-                    div.textContent = entry.name;
-                    div.title = entry.alg;
-                } else {
-                    div.classList.add('has-label');
-                    div.title = entry.name;
-                    const img = document.createElement('img');
-                    img.src = entry.img || '';
-                    img.alt = entry.name;
-                    img.style.cssText = 'width:100%;height:72%;object-fit:contain;';
-                    const lbl = document.createElement('span');
-                    lbl.className = 'case-name-label';
-                    lbl.textContent = entry.name;
-                    div.appendChild(img);
-                    div.appendChild(lbl);
-                }
-            }
-        } else {
-            // OLL / PLL
-            const cards = getCards();
-            const card = cards[i];
-            div.title = card ? card.alg : '';
-            const img = document.createElement('img');
-            img.src = caseImages[getCat()][String(i)] || '';
-            img.alt = card ? card.alg : '';
-            img.style.cssText = 'width:100%;height:100%;object-fit:contain;';
-            div.appendChild(img);
-        }
-
-        statsCards.appendChild(div);
-    });
-}
-
-function clearStats() {
-    if (confirm('Clear all missed and accuracy stats for this set?')) {
-        const key = getActiveKey();
-        missedIndices[key].clear();
-        seenSet[key].clear();
-        correctSet[key].clear();
-        practiceMissedIndices = [];
-        saveStats();
-        showMenu();
-    }
 }
 
 // ——— Persistence ———
 function saveStats() {
-    localStorage.setItem('seenSet', JSON.stringify(Object.fromEntries(STAT_KEYS.map(k => [k, Array.from(seenSet[k])]))));
-    localStorage.setItem('correctSet', JSON.stringify(Object.fromEntries(STAT_KEYS.map(k => [k, Array.from(correctSet[k])]))));
-    localStorage.setItem('missedIndices', JSON.stringify(Object.fromEntries(STAT_KEYS.map(k => [k, Array.from(missedIndices[k])]))));
+    localStorage.setItem('gameStats', JSON.stringify(gameStats));
+    localStorage.setItem('selectedIndices', JSON.stringify(selectedIndices));
 }
 
 function loadStats() {
     try {
-        const seenData = JSON.parse(localStorage.getItem('seenSet'));
-        const correctData = JSON.parse(localStorage.getItem('correctSet'));
-        const missedData = JSON.parse(localStorage.getItem('missedIndices'));
-
-        STAT_KEYS.forEach(k => {
-            if (seenData && seenData[k]) seenSet[k] = new Set(seenData[k]);
-            if (correctData && correctData[k]) correctSet[k] = new Set(correctData[k]);
-            if (missedData && missedData[k]) missedIndices[k] = new Set(missedData[k]);
-        });
+        const savedStats = JSON.parse(localStorage.getItem('gameStats'));
+        if (savedStats) {
+            STAT_KEYS.forEach(k => {
+                if (savedStats[k]) gameStats[k] = { ...gameStats[k], ...savedStats[k] };
+            });
+        }
+        const savedSelected = JSON.parse(localStorage.getItem('selectedIndices'));
+        if (savedSelected) {
+            STAT_KEYS.forEach(k => {
+                if (savedSelected[k]) selectedIndices[k] = savedSelected[k];
+            });
+        }
     } catch (e) {
         console.warn('Failed to load stats from localStorage.');
     }
@@ -521,7 +480,7 @@ async function loadCaseImages() {
         const data = await res.json();
         caseImages.oll = data.oll || {};
         caseImages.pll = data.pll || {};
-        caseImages.tbld = data.tbld || {};   // F2L images (key "f2l" in subset selector maps here)
+        caseImages.tbld = data.tbld || {};
         caseImages.oll_named = data.oll_named || {};
 
         console.log(
@@ -541,21 +500,32 @@ async function loadCaseImages() {
 }
 
 // ——— Event Listeners ———
-btnStart.onclick = () => {
-    practiceMissedMode = false;
-    practiceMissedIndices = [];
+btnStart.onclick = showSelectionScreen;
+
+btnSelectAll.onclick = () => {
+    const key = getActiveKey();
+    selectedIndices[key] = getCards().map((_, i) => i);
+    Array.from(selectionGrid.children).forEach(child => child.classList.add('selected'));
+    saveStats();
+};
+
+btnDeselectAll.onclick = () => {
+    const key = getActiveKey();
+    selectedIndices[key] = [];
+    Array.from(selectionGrid.children).forEach(child => child.classList.remove('selected'));
+    saveStats();
+};
+
+btnStartTraining.onclick = () => {
+    const key = getActiveKey();
+    if (!selectedIndices[key] || selectedIndices[key].length === 0) {
+        alert('Please select at least one case to train.');
+        return;
+    }
+    resetDeck(key);
     startCard();
 };
 
-btnPracticeMissed.onclick = () => {
-    const missed = Array.from(getMissedSet());
-    if (!missed.length) { alert('No missed cases!'); return; }
-    startPracticeMissed(missed);
-};
-
-btnShowStats.onclick = showStats;
-btnClearStats.onclick = clearStats;
-btnCloseStats.onclick = showMenu;
 btnBackMenu.onclick = showMenu;
 
 btnPrimaryAction.onclick = () => {
@@ -568,29 +538,25 @@ recogInput.oninput = () => {
     if (Number.isNaN(v) || v < 0.1) { v = 1; recogInput.value = v; }
     if (v > 10) { v = 10; recogInput.value = v; }
     recognitionTime = v * 1000;
-    updateLiveStats();
 };
 
 selectCategory.onchange = () => {
     resetDeck(getActiveKey());
     updateTbldModeVisibility();
     updateLiveStats();
-    if (statsScreen.style.display === 'block') showStats();
-    else if (stage !== 'idle') updatePromptForStage();
+    if (stage !== 'idle') updatePromptForStage();
 };
 
 if (selectTbldSubset) {
     selectTbldSubset.onchange = () => {
         resetDeck(getActiveKey());
         updateLiveStats();
-        if (statsScreen.style.display === 'block') showStats();
     };
 }
 
 if (selectTbldMode) {
     selectTbldMode.onchange = () => {
         updateLiveStats();
-        if (statsScreen.style.display === 'block') showStats();
     };
 }
 
@@ -607,7 +573,14 @@ document.addEventListener('keydown', e => {
 
     switch (stage) {
         case 'idle':
-            if (e.code === 'Space') { e.preventDefault(); startCard(); }
+            // Allow spacebar only if visual slot is active and ready
+            if (e.code === 'Space' && selectionScreen.style.display === 'flex') {
+                e.preventDefault();
+                btnStartTraining.click();
+            } else if (e.code === 'Space' && menuScreen.style.display === 'block') {
+                e.preventDefault();
+                btnStart.click();
+            }
             break;
         case 'waitingAnswer':
             if (e.code === 'Space') { e.preventDefault(); showAnswer(); }
