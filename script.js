@@ -110,8 +110,8 @@ function getCards() {
     if (cat === 'pll') return pllCards;
 
     // For TeamBlind
-    const key = getTbldSubset() === 'f2l' ? 'tbld' : 'oll_named';
-    const store = caseImages[key] || {};
+    const storeKey = (getTbldSubset() === 'f2l') ? 'tbld' : 'oll_named';
+    const store = caseImages[storeKey] || {};
     return Object.values(store);
 }
 
